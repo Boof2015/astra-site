@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Astra — Audiophile Music Player</title>
+<meta name="description" content="A desktop music player for people who still have a music library. Gapless playback, native C++ visualizers, parametric EQ, and a UI that adapts to your music.">
+<meta name="theme-color" content="#0a0a0f">
+
+<!-- Open Graph -->
+<meta property="og:title" content="Astra — Audiophile Music Player">
+<meta property="og:description" content="A desktop music player for people who still have a music library.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://boof2015.github.io/astra/">
+
+<!-- Fonts: Inter (UI) + JetBrains Mono (data/labels) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg-primary: #06060b;
+  --bg-secondary: #0c0c14;
+  --bg-card: #0e0e18;
+  --bg-card-hover: #12121e;
+  --border: #1a1a2e;
+  --border-bright: #252540;
+  --text-primary: #e8e8f0;
+  --text-secondary: #8888a8;
+  --text-muted: #55556e;
+  --accent: #38bdf8;
+  --accent-dim: #2196cc;
+  --accent-glow: rgba(56, 189, 248, 0.12);
+  --accent-glow-strong: rgba(56, 189, 248, 0.25);
+  --green: #4ade80;
+  --green-dim: rgba(74, 222, 128, 0.1);
+  --mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --radius: 6px;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) var(--bg-primary);
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; display: block; }
+::selection { background: var(--accent); color: var(--bg-primary); }
+
+/* Star field */
+#starfield {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.topo-grid {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image:
+    linear-gradient(var(--accent) 1px, transparent 1px),
+    linear-gradient(90deg, var(--accent) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.container {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(6, 6, 11, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.nav-logo .dot {
+  width: 7px; height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  list-style: none;
+}
+
+.nav-links a {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color var(--transition);
+}
+
+.nav-links a:hover { color: var(--text-primary); }
+
+.nav-download {
+  font-family: var(--mono) !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em;
+  background: var(--accent);
+  color: var(--bg-primary) !important;
+  padding: 0.5rem 1.2rem;
+  border-radius: var(--radius);
+  transition: all var(--transition) !important;
+}
+
+.nav-download:hover {
+  background: #5fc9f8 !important;
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+/* ── Section labels ── */
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.section-label span { color: var(--accent-dim); }
+
+/* ── HERO (split layout on large screens) ── */
+.hero {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  padding: 8rem 2rem 4rem;
+  position: relative;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Stacked (mobile/tablet): centered text, screenshot below */
+.hero-text {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.hero-screenshot {
+  margin-top: 2rem;
+  width: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+/* Split (large screens): text left, screenshot right */
+@media (min-width: 1100px) {
+  .hero {
+    grid-template-columns: 0.8fr 1.2fr;
+    gap: 3.5rem;
+    padding: 0 3rem;
+    min-height: 100vh;
+  }
+  .hero-text {
+    text-align: left;
+    align-items: flex-start;
+  }
+  .hero-screenshot {
+    margin-top: 0;
+    align-self: center;
+  }
+  .hero-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Even wider screens: let it stretch further */
+@media (min-width: 1500px) {
+  .hero {
+    max-width: 1600px;
+    grid-template-columns: 0.7fr 1.3fr;
+    gap: 4rem;
+    padding: 0 4rem;
+  }
+}
+
+@media (min-width: 1800px) {
+  .hero {
+    max-width: 1800px;
+    gap: 5rem;
+    padding: 0 5rem;
+  }
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 200px;
+  background: linear-gradient(transparent, var(--bg-primary));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hero-badge {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 0.45rem 1.1rem;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 100px;
+  margin-bottom: 2rem;
+  background: var(--accent-glow);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hero-badge .ver { color: var(--text-muted); }
+
+.hero h1 {
+  font-family: var(--sans);
+  font-size: clamp(3rem, 6vw, 5rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@media (min-width: 1100px) {
+  .hero h1 {
+    font-size: clamp(4rem, 5.5vw, 6rem);
+  }
+  .hero-sub {
+    font-size: 1.1rem;
+    margin-bottom: 1.8rem;
+  }
+  .hero-desc {
+    font-size: 1.05rem;
+    max-width: 480px;
+    line-height: 1.75;
+    margin-bottom: 2.8rem;
+  }
+  .hero-badge {
+    font-size: 0.72rem;
+    padding: 0.5rem 1.3rem;
+    margin-bottom: 2.2rem;
+  }
+  .btn-primary {
+    font-size: 0.82rem;
+    padding: 0.9rem 2rem;
+  }
+  .btn-outline {
+    font-size: 0.88rem;
+    padding: 0.9rem 2rem;
+  }
+}
+
+.hero-sub {
+  font-family: var(--sans);
+  font-size: clamp(0.85rem, 1.5vw, 1rem);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.hero-desc {
+  max-width: 440px;
+  font-size: 0.92rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 2.5rem;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-primary {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bg-primary);
+  background: var(--accent);
+  padding: 0.8rem 1.8rem;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-primary:hover {
+  background: #5fc9f8;
+  box-shadow: 0 0 30px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  padding: 0.8rem 1.8rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-bright);
+  cursor: pointer;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-outline:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.02);
+}
+
+.hero-scroll {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  z-index: 2;
+  animation: float 2s ease-in-out infinite;
+}
+
+@media (min-width: 1100px) {
+  .hero-scroll { display: none; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(6px); }
+}
+
+/* ── SHOWCASE FRAME (reused in hero + fullscreen section) ── */
+.showcase { padding: 2rem 0 6rem; }
+
+.showcase-frame {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(56, 189, 248, 0.05);
+}
+
+.showcase-frame::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 36px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  z-index: 2;
+}
+
+.showcase-frame::after {
+  content: '● ● ●';
+  position: absolute;
+  top: 10px; left: 14px;
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: var(--text-muted);
+  z-index: 3;
+  opacity: 0.4;
+}
+
+.showcase-frame img {
+  width: 100%;
+  display: block;
+  margin-top: 36px;
+}
+
+/* Generic image placeholder */
+.img-placeholder {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: linear-gradient(145deg, #0d0d1a 0%, #111125 40%, #0a0a18 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  border: 1px dashed var(--border-bright);
+  border-radius: 8px;
+}
+
+.img-placeholder .ph-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.img-placeholder .ph-hint {
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
+.img-placeholder svg { opacity: 0.12; }
+
+.showcase-placeholder {
+  margin-top: 36px;
+  border: none;
+  border-radius: 0;
+}
+
+/* ── FEATURES ── */
+.features { padding: 6rem 0; }
+
+.features-header { margin-bottom: 4rem; }
+
+.features-header h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.features-header p {
+  color: var(--text-secondary);
+  font-weight: 400;
+  max-width: 480px;
+  font-size: 0.95rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.feature-card {
+  background: var(--bg-card);
+  padding: 2rem;
+  transition: background var(--transition);
+}
+
+.feature-card:hover { background: var(--bg-card-hover); }
+
+.feature-tag {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.8rem;
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  background: var(--accent-glow);
+  border-radius: 3px;
+}
+
+.feature-card h3 {
+  font-family: var(--sans);
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.feature-card p {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ── VISUALIZERS ── */
+.visualizers { padding: 6rem 0; }
+
+.viz-header { margin-bottom: 3rem; }
+
+.viz-header h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.viz-header p {
+  color: var(--text-secondary);
+  font-weight: 400;
+  max-width: 500px;
+  font-size: 0.95rem;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.viz-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-card);
+  transition: all var(--transition);
+}
+
+.viz-card:hover {
+  border-color: var(--border-bright);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
+.viz-preview {
+  height: 180px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #0a0a16, #0e0e1c);
+}
+
+.viz-preview .img-placeholder {
+  aspect-ratio: unset;
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+}
+
+.viz-preview img { width: 100%; height: 100%; object-fit: cover; }
+
+.viz-info {
+  padding: 1.3rem 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.viz-info h3 {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
+}
+
+.viz-info p {
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Rack customization sub-section */
+.rack-showcase {
+  margin-top: 3.5rem;
+}
+
+.rack-text {
+  margin-bottom: 2rem;
+}
+
+.rack-text h3 {
+  font-family: var(--sans);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.rack-text p {
+  color: var(--text-secondary);
+  font-weight: 400;
+  max-width: 560px;
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+/* ── SPECS ── */
+.specs { padding: 6rem 0; }
+
+.specs h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 3rem;
+}
+
+.specs-table {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.specs-table thead { background: var(--bg-card); }
+
+.specs-table th {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0.9rem 1.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.specs-table td {
+  font-size: 0.85rem;
+  font-weight: 400;
+  padding: 0.85rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.specs-table tr:last-child td { border-bottom: none; }
+.specs-table tbody tr { transition: background var(--transition); }
+.specs-table tbody tr:hover { background: var(--bg-card); }
+
+.format-tag {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  background: var(--accent-glow);
+  color: var(--accent);
+  padding: 0.18rem 0.45rem;
+  border-radius: 3px;
+  display: inline-block;
+  margin: 0.1rem 0.15rem;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+}
+
+.status-dot.native { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.cpp { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+/* ── EQ ── */
+.eq-section { padding: 6rem 0; }
+
+.eq-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+
+.eq-text h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+}
+
+.eq-text p {
+  color: var(--text-secondary);
+  font-weight: 400;
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+  font-size: 0.92rem;
+}
+
+.eq-features { list-style: none; }
+
+.eq-features li {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.eq-features li::before {
+  content: '→';
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.eq-screenshot {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.eq-screenshot img { width: 100%; display: block; }
+
+.eq-screenshot .img-placeholder {
+  aspect-ratio: 4/3;
+  border: none;
+  border-radius: 0;
+}
+
+/* ── API ── */
+.api-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .api-content {
+    grid-template-columns: 1fr 1fr;
+    gap: 3.5rem;
+  }
+}
+
+.api-features {
+  list-style: none;
+}
+
+.api-features li {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  line-height: 1.4;
+}
+
+.api-tag {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.api-tag.read {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.api-tag.write {
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--green);
+}
+
+.api-tag.opt {
+  background: rgba(251, 146, 60, 0.1);
+  color: #fb923c;
+}
+
+.api-code {
+  width: 100%;
+}
+
+.api-code .code-block {
+  max-width: none;
+}
+
+.code-body .str { color: #fb923c; }
+.code-body .num { color: var(--accent); }
+
+/* ── MINI PLAYER ── */
+.mini-player-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .mini-player-content {
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+  }
+}
+
+.mini-player-screenshot {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.mini-player-screenshot img {
+  width: 100%;
+  display: block;
+}
+
+/* ── DOWNLOAD ── */
+.download-section { padding: 6rem 0; }
+
+.download-content {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.download-content h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.download-content > p {
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-bottom: 3rem;
+  font-size: 0.95rem;
+}
+
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.dl-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem 1.5rem;
+  background: var(--bg-card);
+  transition: all var(--transition);
+  display: block;
+}
+
+.dl-card:hover {
+  border-color: var(--accent-dim);
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
+.dl-icon { font-size: 1.6rem; margin-bottom: 0.7rem; opacity: 0.7; }
+
+.dl-card h3 {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.dl-card .dl-formats {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dl-aur {
+  margin-top: 1rem;
+}
+
+.dl-aur a {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  transition: color var(--transition);
+  letter-spacing: 0.03em;
+}
+
+.dl-aur a:hover { color: var(--accent); }
+.dl-aur strong { color: var(--text-secondary); }
+
+/* ── BUILD ── */
+.build-section { padding: 4rem 0 6rem; }
+
+.build-section h3 {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.code-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.2rem;
+  background: rgba(255,255,255,0.015);
+  border-bottom: 1px solid var(--border);
+}
+
+.code-header span {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.code-header .lang {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-dim);
+}
+
+.code-body { padding: 1.2rem 1.5rem; overflow-x: auto; }
+
+.code-body pre {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+
+.code-body .cmd { color: var(--green); }
+.code-body .comment { color: var(--text-muted); }
+.code-body .arg { color: var(--accent); }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 3rem 0;
+  position: relative;
+  z-index: 1;
+}
+
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.footer-left {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.footer-left a {
+  color: var(--text-secondary);
+  transition: color var(--transition);
+}
+
+.footer-left a:hover { color: var(--text-primary); }
+
+.footer-links {
+  display: flex;
+  gap: 1.5rem;
+  list-style: none;
+}
+
+.footer-links a {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+
+.footer-links a:hover { color: var(--text-primary); }
+
+.footer-status {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  padding-top: 2rem;
+  margin-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+
+.footer-status .online-dot {
+  display: inline-block;
+  width: 5px; height: 5px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--green);
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
+/* Divider */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+  margin: 0 auto;
+  max-width: 600px;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .viz-grid { grid-template-columns: 1fr; }
+  .eq-content { grid-template-columns: 1fr; gap: 2rem; }
+  .download-grid { grid-template-columns: 1fr; max-width: 340px; margin: 0 auto 2rem; }
+}
+
+@media (max-width: 700px) {
+  nav { padding: 0.9rem 1rem; }
+  .nav-links { gap: 1rem; }
+  .nav-links a:not(.nav-download) { display: none; }
+  .features-grid { grid-template-columns: 1fr; }
+  .hero { padding: 7rem 1.5rem 4rem; }
+  .container { padding: 0 1.2rem; }
+  .specs-table th, .specs-table td { padding: 0.7rem 0.8rem; }
+}
+
+/* Fade-in */
+.fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.fade-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+<div class="topo-grid"></div>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">
+    <span class="dot"></span>
+    ASTRA
+  </div>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#visualizers">Scopes</a></li>
+    <li><a href="#specs">Specs</a></li>
+    <li><a href="#api">API</a></li>
+    <li><a href="https://github.com/Boof2015/astra/wiki" target="_blank" rel="noopener">Wiki</a></li>
+    <li><a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="nav-download">Download</a></li>
+  </ul>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-text">
+    <div class="hero-badge">
+      OPEN SOURCE <span class="ver">// GPL-3.0</span>
+    </div>
+    <h1>ASTRA</h1>
+    <p class="hero-sub">Audiophile desktop music player</p>
+    <p class="hero-desc">
+      A music player for people who still have a music library. Your FLACs, your MP3s, your carefully tagged collection — played back the way it was meant to sound.
+    </p>
+    <div class="hero-actions">
+      <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="btn-primary">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12L3 7h3V1h4v6h3L8 12z"/><path d="M14 14H2v-2h12v2z"/></svg>
+        Download
+      </a>
+      <a href="https://github.com/Boof2015/astra" target="_blank" rel="noopener" class="btn-outline">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        Source Code
+      </a>
+    </div>
+  </div>
+  <div class="hero-screenshot">
+    <div class="showcase-frame">
+      <!-- ✏️ REPLACE: uncomment and point to your screenshot -->
+      <!-- <img src="assets/home.png" alt="Astra home screen"> -->
+      <div class="showcase-placeholder img-placeholder">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="2" y="3" width="20" height="14" rx="2"/><circle cx="12" cy="20" r="1"/><line x1="12" y1="17" x2="12" y2="19"/></svg>
+        <div class="ph-label">SCREENSHOT // HOME</div>
+        <div class="ph-hint">Replace with assets/home.png</div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-scroll">SCROLL ↓</div>
+</section>
+
+<!-- Features -->
+<section class="features container fade-in" id="features">
+  <div class="features-header">
+    <div class="section-label"><span>//</span> SECTION_01</div>
+    <h2>Built different.</h2>
+    <p>Not another wrapper around a web player. Real audio processing for people who care about how their music sounds.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-tag">Playback</div>
+      <h3>Gapless playback</h3>
+      <p>Pre-buffered crossfade-free transitions so albums flow the way they were mastered. No gaps, no glitches, no compromises.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Formats</div>
+      <h3>Everything plays</h3>
+      <p>FLAC, MP3, WAV, OGG, AAC, M4A, OPUS, WMA, AIFF — native decoding with an FFmpeg fallback for the rest.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Library</div>
+      <h3>Your collection, organized</h3>
+      <p>Point it at your folders. Metadata extraction, album artwork, searchable library by artist, album, or track. Favorites and history tracked automatically.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">DSP</div>
+      <h3>Native C++ analysis</h3>
+      <p>Real-time audio analysis through a native C++ module. The analysis path is tapped independently from your output routing.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Interface</div>
+      <h3>Adapts to your music</h3>
+      <p>Accent colors pulled from album art. Fullscreen mode with ambient spectrum backdrop. A home page sky that changes with the time of day.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Audio</div>
+      <h3>Proper audio settings</h3>
+      <p>Output device selection, loudness normalization, multichannel support with per-channel remapping, and Bluetooth delay calibration.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Visualizers -->
+<section class="visualizers container fade-in" id="visualizers">
+  <div class="viz-header">
+    <div class="section-label"><span>//</span> SECTION_02</div>
+    <h2>Seven scopes. Your layout.</h2>
+    <p>Real-time visualizers powered by native C++. Seven scopes, fully customizable — drag, resize, and arrange them however you want. The analysis path is independent from output routing, so scopes always reflect the source material.</p>
+  </div>
+  <div class="viz-grid">
+    <div class="viz-card">
+      <div class="viz-preview">
+        <!-- ✏️ REPLACE with gif/screenshot: <img src="assets/scope.gif" alt="Oscilloscope"> -->
+        <div class="img-placeholder">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,12 5,8 9,16 13,6 17,14 21,10 23,12"/></svg>
+          <div class="ph-label">GIF // SCOPE</div>
+        </div>
+      </div>
+      <div class="viz-info">
+        <h3>Oscilloscope</h3>
+        <p>Pitch-lock detection with waveform display. Stable, coherent trace even at low frequencies.</p>
+      </div>
+    </div>
+    <div class="viz-card">
+      <div class="viz-preview">
+        <!-- ✏️ REPLACE: <img src="assets/spectrum.gif" alt="Spectrum Analyzer"> -->
+        <div class="img-placeholder">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="14" width="3" height="6"/><rect x="7" y="8" width="3" height="12"/><rect x="12" y="4" width="3" height="16"/><rect x="17" y="10" width="3" height="10"/></svg>
+          <div class="ph-label">GIF // SPECTRUM</div>
+        </div>
+      </div>
+      <div class="viz-info">
+        <h3>Spectrum Analyzer</h3>
+        <p>Configurable FFT with logarithmic frequency scaling and adjustable smoothing.</p>
+      </div>
+    </div>
+    <div class="viz-card">
+      <div class="viz-preview">
+        <!-- ✏️ REPLACE: <img src="assets/vectorscope.gif" alt="Vectorscope"> -->
+        <div class="img-placeholder">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+          <div class="ph-label">GIF // VECTORSCOPE</div>
+        </div>
+      </div>
+      <div class="viz-info">
+        <h3>Vectorscope</h3>
+        <p>Stereo phase imaging — visualize the spatial relationship between your left and right channels.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rack customization -->
+  <div class="rack-showcase">
+    <div class="rack-text">
+      <h3>Build your own rack.</h3>
+      <p>Pick from seven scopes, arrange them in any layout, resize to fit your workflow. The entire scope rack is yours to customize — save presets and switch between setups on the fly.</p>
+    </div>
+    <div class="showcase-frame">
+      <!-- ✏️ REPLACE: screen recording of editing the scope rack -->
+      <!-- <img src="assets/rack-editing.gif" alt="Customizing the scope rack"> -->
+      <div class="showcase-placeholder img-placeholder">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="1" y="3" width="9" height="7" rx="1"/><rect x="14" y="3" width="9" height="7" rx="1"/><rect x="1" y="14" width="22" height="7" rx="1"/><circle cx="20" cy="6.5" r="1.5"/><path d="M4 17l3-2 2 1 4-3 3 2 3-1 2 1"/></svg>
+        <div class="ph-label">RECORDING // RACK CUSTOMIZATION</div>
+        <div class="ph-hint">Replace with screen recording of editing the scope rack</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- EQ -->
+<section class="eq-section container fade-in">
+  <div class="eq-content">
+    <div class="eq-text">
+      <div class="section-label"><span>//</span> SECTION_03</div>
+      <h2>Parametric EQ</h2>
+      <p>A fully parametric equalizer with up to 10 bands, a live frequency response graph with spectrum overlay, and built-in presets. If you use AutoEQ, you can import headphone calibration profiles directly.</p>
+      <ul class="eq-features">
+        <li>Up to 10 parametric bands</li>
+        <li>Live frequency response graph</li>
+        <li>Spectrum overlay on EQ curve</li>
+        <li>Built-in presets</li>
+        <li>AutoEQ profile import</li>
+        <li>Custom preset saving</li>
+      </ul>
+    </div>
+    <div class="eq-screenshot">
+      <!-- ✏️ REPLACE: <img src="assets/EQ.png" alt="Astra equalizer"> -->
+      <div class="img-placeholder">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12c2-3 4-5 6-2s4 5 6 1 4-6 6-3"/></svg>
+        <div class="ph-label">SCREENSHOT // EQ</div>
+        <div class="ph-hint">Replace with assets/EQ.png</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Fullscreen -->
+<section class="container fade-in" style="padding: 6rem 0;">
+  <div class="section-label"><span>//</span> FULLSCREEN</div>
+  <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 1rem;">Fullscreen mode</h2>
+  <p style="color: var(--text-secondary); font-weight: 400; max-width: 500px; margin-bottom: 2rem; font-size: 0.95rem;">Album art backdrop with ambient spectrum. Discord Rich Presence if you're into that.</p>
+  <div class="showcase-frame">
+    <!-- ✏️ REPLACE: <img src="assets/Fullscreen.png" alt="Astra fullscreen mode"> -->
+    <div class="showcase-placeholder img-placeholder">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="2" y="3" width="20" height="14" rx="2"/><polygon points="10,7 16,10 10,13"/></svg>
+      <div class="ph-label">SCREENSHOT // FULLSCREEN</div>
+      <div class="ph-hint">Replace with assets/Fullscreen.png</div>
+    </div>
+  </div>
+</section>
+
+<!-- Mini Player -->
+<section class="container fade-in" style="padding: 6rem 0;">
+  <div class="mini-player-content">
+    <div class="mini-player-screenshot">
+      <!-- ✏️ REPLACE: <img src="assets/miniplayer.png" alt="Astra mini player"> -->
+      <div class="img-placeholder" style="aspect-ratio: auto; min-height: 240px;">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="4" y="8" width="16" height="10" rx="2"/><line x1="8" y1="12" x2="16" y2="12"/><circle cx="12" cy="15" r="1"/></svg>
+        <div class="ph-label">SCREENSHOT // MINI PLAYER</div>
+        <div class="ph-hint">Replace with assets/miniplayer.png</div>
+      </div>
+    </div>
+    <div class="mini-player-text">
+      <div class="section-label"><span>//</span> MINI PLAYER</div>
+      <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 1rem;">Out of the way.</h2>
+      <p style="color: var(--text-secondary); font-weight: 400; max-width: 440px; font-size: 0.95rem; line-height: 1.7;">When you just want your music playing without the full window, the mini player keeps controls accessible while staying out of your workspace.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- API -->
+<section class="container fade-in" style="padding: 6rem 0;" id="api">
+  <div class="api-content">
+    <div class="api-text">
+      <div class="section-label"><span>//</span> API</div>
+      <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 1rem;">Build on top of Astra.</h2>
+      <p style="color: var(--text-secondary); font-weight: 400; max-width: 440px; font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.5rem;">A local REST API for reading playback state, subscribing to real-time updates via SSE, and optionally controlling playback. Loopback only, bearer token auth, disabled by default. You decide what external tools can see and do.</p>
+      <ul class="api-features">
+        <li><span class="api-tag read">GET</span> /v1/now-playing — track, artist, album, state, position</li>
+        <li><span class="api-tag read">GET</span> /v1/events — real-time SSE stream of playback updates</li>
+        <li><span class="api-tag read">GET</span> /v1/artwork/current — current track cover art bytes</li>
+        <li><span class="api-tag write">POST</span> /v1/control — play, pause, next, previous, toggle-favorite</li>
+        <li><span class="api-tag opt">OPT-IN</span> Controls require a separate toggle in settings</li>
+      </ul>
+      <a href="https://github.com/Boof2015/astra/wiki/Astra-API" target="_blank" rel="noopener" class="btn-outline" style="margin-top: 1.5rem; font-size: 0.78rem;">
+        API Docs →
+      </a>
+    </div>
+    <div class="api-code">
+      <div class="code-block">
+        <div class="code-header">
+          <span>GET /v1/now-playing</span>
+          <span class="lang">JSON RESPONSE</span>
+        </div>
+        <div class="code-body">
+<pre>{
+  <span class="str">"playbackState"</span>: <span class="str">"playing"</span>,
+  <span class="str">"currentTime"</span>: <span class="num">42.13</span>,
+  <span class="str">"duration"</span>: <span class="num">218.56</span>,
+  <span class="str">"queueLength"</span>: <span class="num">37</span>,
+  <span class="str">"outputDeviceLabel"</span>: <span class="str">"MacBook Pro Speakers"</span>,
+  <span class="str">"visualizerLineColor"</span>: <span class="str">"#38bdf8"</span>,
+  <span class="str">"currentTrack"</span>: {
+    <span class="str">"id"</span>: <span class="str">"12345"</span>,
+    <span class="str">"title"</span>: <span class="str">"Running Up That Hill"</span>,
+    <span class="str">"artist"</span>: <span class="str">"Kate Bush"</span>,
+    <span class="str">"album"</span>: <span class="str">"Hounds of Love"</span>,
+    <span class="str">"isFavorite"</span>: <span class="num">false</span>,
+    <span class="str">"artworkUrl"</span>: <span class="str">"http://127.0.0.1:38401/..."</span>
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Specs -->
+<section class="specs container fade-in" id="specs">
+  <div class="section-label"><span>//</span> SECTION_04</div>
+  <h2>Under the hood</h2>
+  <table class="specs-table">
+    <thead>
+      <tr><th>Component</th><th>Detail</th><th>Engine</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Framework</td><td>Electron + Vite</td><td><span class="status-dot native"></span>TypeScript</td></tr>
+      <tr><td>Audio Pipeline</td><td>Web Audio API + native module</td><td><span class="status-dot cpp"></span>C++ DSP</td></tr>
+      <tr><td>Visualizers</td><td>7 scopes, fully customizable rack layout</td><td><span class="status-dot cpp"></span>C++ Native</td></tr>
+      <tr>
+        <td>Formats</td>
+        <td>
+          <span class="format-tag">FLAC</span>
+          <span class="format-tag">MP3</span>
+          <span class="format-tag">WAV</span>
+          <span class="format-tag">OGG</span>
+          <span class="format-tag">AAC</span>
+          <span class="format-tag">M4A</span>
+          <span class="format-tag">OPUS</span>
+          <span class="format-tag">AIFF</span>
+          <span class="format-tag">WMA</span>
+        </td>
+        <td><span class="status-dot native"></span>Native + FFmpeg</td>
+      </tr>
+      <tr><td>Equalizer</td><td>Parametric, 10-band, AutoEQ import</td><td><span class="status-dot native"></span>Web Audio</td></tr>
+      <tr><td>Platforms</td><td>Windows, macOS, Linux</td><td><span class="status-dot native"></span>Cross-platform</td></tr>
+      <tr><td>License</td><td>GNU General Public License v3.0</td><td><span class="status-dot native"></span>Open Source</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Download -->
+<section class="download-section container fade-in" id="download">
+  <div class="download-content">
+    <div class="section-label"><span>//</span> DOWNLOAD</div>
+    <h2>Get Astra</h2>
+    <p>Prebuilt binaries for all major platforms. Or build it yourself if that's your thing.</p>
+    <div class="download-grid">
+      <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="dl-card">
+        <div class="dl-icon">⊞</div>
+        <h3>Windows</h3>
+        <div class="dl-formats">NSIS + PORTABLE</div>
+      </a>
+      <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="dl-card">
+        <div class="dl-icon">⌘</div>
+        <h3>macOS</h3>
+        <div class="dl-formats">DMG + ZIP</div>
+      </a>
+      <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="dl-card">
+        <div class="dl-icon">⟩_</div>
+        <h3>Linux</h3>
+        <div class="dl-formats">APPIMAGE + DEB</div>
+      </a>
+    </div>
+    <div class="dl-aur">
+      <a href="https://aur.archlinux.org/packages/astra-music-bin" target="_blank" rel="noopener">
+        Also available on the <strong>AUR</strong> <span style="opacity:0.5">— astra-music-bin</span>
+      </a>
+    </div>
+  </div>
+  <div class="build-section">
+    <h3>Or build from source</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span>terminal</span>
+        <span class="lang">BASH</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cmd">git clone</span> <span class="arg">https://github.com/Boof2015/astra.git</span>
+<span class="cmd">cd</span> astra
+<span class="cmd">npm install</span>
+<span class="cmd">npm run</span> <span class="arg">dev</span>       <span class="comment"># development</span>
+<span class="cmd">npm run</span> <span class="arg">dist</span>      <span class="comment"># package for current platform</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">© 2025 Astra — Made by <a href="https://github.com/Boof2015" target="_blank" rel="noopener">Boof2015</a></div>
+      <ul class="footer-links">
+        <li><a href="https://github.com/Boof2015/astra" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://github.com/Boof2015/astra/wiki" target="_blank" rel="noopener">Wiki</a></li>
+        <li><a href="https://ko-fi.com/boof2015" target="_blank" rel="noopener">Support</a></li>
+        <li><a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener">Releases</a></li>
+      </ul>
+    </div>
+    <div class="footer-status">
+      <span class="online-dot"></span> GPL-3.0 — OPEN SOURCE — [EOS]
+    </div>
+  </div>
+</footer>
+
+<script>
+// Star field
+(function() {
+  const c = document.getElementById('starfield');
+  const ctx = c.getContext('2d');
+  let stars = [];
+  const N = 180;
+  function resize() { c.width = innerWidth; c.height = innerHeight; }
+  function init() {
+    resize();
+    stars = Array.from({length: N}, () => ({
+      x: Math.random() * c.width,
+      y: Math.random() * c.height,
+      r: Math.random() * 1.1 + 0.2,
+      a: Math.random() * 0.4 + 0.08,
+      s: Math.random() * 0.0003 + 0.0001,
+      p: Math.random() * Math.PI * 2
+    }));
+  }
+  function draw(t) {
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const s of stars) {
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(180,210,255,${s.a * (Math.sin(t * s.s * 1000 + s.p) * 0.15 + 0.85)})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  addEventListener('resize', init);
+  init();
+  requestAnimationFrame(draw);
+})();
+
+// Scroll fade-in
+(function() {
+  const obs = new IntersectionObserver(es => {
+    es.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
+})();
+</script>
+</body>
+</html>
