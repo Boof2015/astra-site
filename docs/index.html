@@ -613,6 +613,7 @@ nav {
 }
 
 .viz-preview img { width: 100%; height: 100%; object-fit: cover; }
+.viz-preview video { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .viz-info {
   padding: 1.3rem 1.5rem;
@@ -1172,13 +1173,7 @@ footer {
   </div>
   <div class="hero-screenshot">
     <div class="showcase-frame">
-      <!-- ✏️ REPLACE: uncomment and point to your screenshot -->
-      <!-- <img src="assets/home.png" alt="Astra home screen"> -->
-      <div class="showcase-placeholder img-placeholder">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="2" y="3" width="20" height="14" rx="2"/><circle cx="12" cy="20" r="1"/><line x1="12" y1="17" x2="12" y2="19"/></svg>
-        <div class="ph-label">SCREENSHOT // HOME</div>
-        <div class="ph-hint">Replace with assets/home.png</div>
-      </div>
+      <img src="assets/Homescreen.png" alt="Astra home screen">
     </div>
   </div>
   <div class="hero-scroll">SCROLL ↓</div>
@@ -1237,11 +1232,9 @@ footer {
   <div class="viz-grid">
     <div class="viz-card">
       <div class="viz-preview">
-        <!-- ✏️ REPLACE with gif/screenshot: <img src="assets/scope.gif" alt="Oscilloscope"> -->
-        <div class="img-placeholder">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,12 5,8 9,16 13,6 17,14 21,10 23,12"/></svg>
-          <div class="ph-label">GIF // SCOPE</div>
-        </div>
+        <video autoplay muted loop style="width: 100%; height: 100%; object-fit: cover;">
+          <source src="assets/oscilloscope.mkv" type="video/x-matroska">
+        </video>
       </div>
       <div class="viz-info">
         <h3>Oscilloscope</h3>
@@ -1250,11 +1243,9 @@ footer {
     </div>
     <div class="viz-card">
       <div class="viz-preview">
-        <!-- ✏️ REPLACE: <img src="assets/spectrum.gif" alt="Spectrum Analyzer"> -->
-        <div class="img-placeholder">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="14" width="3" height="6"/><rect x="7" y="8" width="3" height="12"/><rect x="12" y="4" width="3" height="16"/><rect x="17" y="10" width="3" height="10"/></svg>
-          <div class="ph-label">GIF // SPECTRUM</div>
-        </div>
+        <video autoplay muted loop style="width: 100%; height: 100%; object-fit: cover;">
+          <source src="assets/spectrum.mkv" type="video/x-matroska">
+        </video>
       </div>
       <div class="viz-info">
         <h3>Spectrum Analyzer</h3>
@@ -1263,11 +1254,9 @@ footer {
     </div>
     <div class="viz-card">
       <div class="viz-preview">
-        <!-- ✏️ REPLACE: <img src="assets/vectorscope.gif" alt="Vectorscope"> -->
-        <div class="img-placeholder">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
-          <div class="ph-label">GIF // VECTORSCOPE</div>
-        </div>
+        <video autoplay muted loop style="width: 100%; height: 100%; object-fit: cover;">
+          <source src="assets/vectorscope.mkv" type="video/x-matroska">
+        </video>
       </div>
       <div class="viz-info">
         <h3>Vectorscope</h3>
@@ -1283,13 +1272,9 @@ footer {
       <p>Pick from seven scopes, arrange them in any layout, resize to fit your workflow. The entire scope rack is yours to customize — save presets and switch between setups on the fly.</p>
     </div>
     <div class="showcase-frame">
-      <!-- ✏️ REPLACE: screen recording of editing the scope rack -->
-      <!-- <img src="assets/rack-editing.gif" alt="Customizing the scope rack"> -->
-      <div class="showcase-placeholder img-placeholder">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="1" y="3" width="9" height="7" rx="1"/><rect x="14" y="3" width="9" height="7" rx="1"/><rect x="1" y="14" width="22" height="7" rx="1"/><circle cx="20" cy="6.5" r="1.5"/><path d="M4 17l3-2 2 1 4-3 3 2 3-1 2 1"/></svg>
-        <div class="ph-label">RECORDING // RACK CUSTOMIZATION</div>
-        <div class="ph-hint">Replace with screen recording of editing the scope rack</div>
-      </div>
+      <video width="100%" autoplay muted loop style="display: block; margin-top: 36px;">
+        <source src="assets/scope edit.mkv" type="video/x-matroska">
+      </video>
     </div>
   </div>
 </section>
@@ -1313,12 +1298,7 @@ footer {
       </ul>
     </div>
     <div class="eq-screenshot">
-      <!-- ✏️ REPLACE: <img src="assets/EQ.png" alt="Astra equalizer"> -->
-      <div class="img-placeholder">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12c2-3 4-5 6-2s4 5 6 1 4-6 6-3"/></svg>
-        <div class="ph-label">SCREENSHOT // EQ</div>
-        <div class="ph-hint">Replace with assets/EQ.png</div>
-      </div>
+      <img src="assets/EQ.png" alt="Astra equalizer">
     </div>
   </div>
 </section>
@@ -1331,12 +1311,7 @@ footer {
   <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 1rem;">Fullscreen mode</h2>
   <p style="color: var(--text-secondary); font-weight: 400; max-width: 500px; margin-bottom: 2rem; font-size: 0.95rem;">Album art backdrop with ambient spectrum. Discord Rich Presence if you're into that.</p>
   <div class="showcase-frame">
-    <!-- ✏️ REPLACE: <img src="assets/Fullscreen.png" alt="Astra fullscreen mode"> -->
-    <div class="showcase-placeholder img-placeholder">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="2" y="3" width="20" height="14" rx="2"/><polygon points="10,7 16,10 10,13"/></svg>
-      <div class="ph-label">SCREENSHOT // FULLSCREEN</div>
-      <div class="ph-hint">Replace with assets/Fullscreen.png</div>
-    </div>
+    <img src="assets/Fullscreen.png" alt="Astra fullscreen mode">
   </div>
 </section>
 
@@ -1344,12 +1319,7 @@ footer {
 <section class="container fade-in" style="padding: 6rem 0;">
   <div class="mini-player-content">
     <div class="mini-player-screenshot">
-      <!-- ✏️ REPLACE: <img src="assets/miniplayer.png" alt="Astra mini player"> -->
-      <div class="img-placeholder" style="aspect-ratio: auto; min-height: 240px;">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="4" y="8" width="16" height="10" rx="2"/><line x1="8" y1="12" x2="16" y2="12"/><circle cx="12" cy="15" r="1"/></svg>
-        <div class="ph-label">SCREENSHOT // MINI PLAYER</div>
-        <div class="ph-hint">Replace with assets/miniplayer.png</div>
-      </div>
+      <img src="assets/Miniplayer.png" alt="Astra mini player">
     </div>
     <div class="mini-player-text">
       <div class="section-label"><span>//</span> MINI PLAYER</div>
@@ -1551,6 +1521,21 @@ footer {
     es.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
   }, { threshold: 0.08 });
   document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
+})();
+
+// Auto-play videos when visible on screen
+(function() {
+  const videos = document.querySelectorAll('video[autoplay]');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.play().catch(() => {});
+      } else {
+        entry.target.pause();
+      }
+    });
+  }, { threshold: 0.25 });
+  videos.forEach(video => obs.observe(video));
 })();
 </script>
 </body>
