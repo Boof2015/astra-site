@@ -633,6 +633,7 @@ nav {
 
 .viz-preview img { width: 100%; height: 100%; object-fit: cover; }
 .viz-preview video { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (prefers-reduced-motion: reduce) { video { display: none; } }
 
 .viz-info {
   padding: 1.3rem 1.5rem;
@@ -1876,9 +1877,14 @@ footer {
   document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
 })();
 
-// Auto-play videos when visible on screen
+// Auto-play videos when visible on screen (skipped if user prefers reduced motion)
 (function() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const videos = document.querySelectorAll('video[autoplay]');
+  if (reduceMotion) {
+    videos.forEach(v => { v.removeAttribute('autoplay'); v.pause(); });
+    return;
+  }
   const obs = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
