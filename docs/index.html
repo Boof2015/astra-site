@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Astra — Audiophile Music Player</title>
+<title>Astra - Audiophile Music Player</title>
 <meta name="description" content="A desktop music player for people who still have a music library. Gapless playback, native C++ visualizers, parametric EQ, and a UI that adapts to your music.">
 <meta name="theme-color" content="#0a0a0f">
 
 <!-- Open Graph -->
-<meta property="og:title" content="Astra — Audiophile Music Player">
+<meta property="og:title" content="Astra - Audiophile Music Player">
 <meta property="og:description" content="A desktop music player for people who still have a music library.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://boof2015.github.io/astra/">
@@ -906,6 +906,108 @@ nav {
   display: block;
 }
 
+/* ── INTEGRATIONS ── */
+.integrations { padding: 6rem 0; }
+
+.integrations-header { margin-bottom: 3rem; }
+
+.integrations-header h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.integrations-header p {
+  color: var(--text-secondary);
+  font-weight: 400;
+  max-width: 520px;
+  font-size: 0.95rem;
+}
+
+.integrations-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.integration-item {
+  background: var(--bg-card);
+  padding: 1.8rem;
+  transition: background var(--transition);
+}
+
+.integration-item:hover { background: var(--bg-card-hover); }
+
+.integration-item h3 {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.integration-item h3::before {
+  content: '→';
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.integration-item p {
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding-left: 1.35rem;
+}
+
+.prism-showcase {
+  margin-top: 3.5rem;
+}
+
+.prism-text {
+  margin-bottom: 2rem;
+}
+
+.prism-text h3 {
+  font-family: var(--sans);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.prism-text p {
+  color: var(--text-secondary);
+  font-weight: 400;
+  max-width: 560px;
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+.coming-soon-tag {
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fb923c;
+  background: rgba(251, 146, 60, 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+}
+
 /* ── DOWNLOAD ── */
 .download-section { padding: 6rem 0; }
 
@@ -1132,11 +1234,13 @@ footer {
   .eq-text h2 { font-size: 1.8rem; }
   .eq-features li { font-size: 0.8rem; padding: 0.4rem 0; }
   .mini-player-content { grid-template-columns: 1fr; gap: 2rem; }
+  .integrations-header h2 { font-size: 1.8rem; }
+  .integrations-grid { grid-template-columns: 1fr; }
   .download-grid { grid-template-columns: 1fr; max-width: 340px; margin: 0 auto 2rem; }
   .download-content h2 { font-size: 1.8rem; }
   .dl-card { padding: 1.5rem 1.2rem; }
   .code-block { max-width: 100%; }
-}}
+}
 
 @media (max-width: 768px) {
   nav { padding: 0.85rem 1.2rem; }
@@ -1185,6 +1289,15 @@ footer {
   .specs-table th { font-size: 0.55rem; padding: 0.7rem 1rem; }
   .specs-table td { font-size: 0.78rem; padding: 0.7rem 1rem; }
   .mini-player-content { padding: 0; }
+  .integrations { padding: 4rem 0; }
+  .integrations-header h2 { font-size: 1.6rem; }
+  .integrations-header p { font-size: 0.88rem; }
+  .integrations-grid { grid-template-columns: 1fr; }
+  .integration-item { padding: 1.4rem; }
+  .integration-item h3 { font-size: 0.88rem; }
+  .integration-item p { font-size: 0.78rem; }
+  .prism-text h3 { font-size: 1.1rem; }
+  .prism-text p { font-size: 0.85rem; }
   .download-section { padding: 4rem 0; }
   .download-content { max-width: 100%; }
   .download-content h2 { font-size: 1.6rem; }
@@ -1266,6 +1379,14 @@ footer {
   .specs-table { border-radius: 6px; }
   .specs-table th { font-size: 0.52rem; padding: 0.6rem 0.8rem; }
   .specs-table td { font-size: 0.75rem; padding: 0.6rem 0.8rem; }
+  .integrations { padding: 3.5rem 0; }
+  .integrations-header h2 { font-size: 1.4rem; }
+  .integrations-header p { font-size: 0.8rem; }
+  .integration-item { padding: 1.2rem; }
+  .integration-item h3 { font-size: 0.82rem; }
+  .integration-item p { font-size: 0.75rem; }
+  .prism-text h3 { font-size: 1rem; }
+  .prism-text p { font-size: 0.8rem; }
   .download-section { padding: 3.5rem 0; }
   .download-content h2 { font-size: 1.4rem; }
   .download-content > p { font-size: 0.8rem; margin-bottom: 1.5rem; }
@@ -1322,7 +1443,8 @@ footer {
     <li><a href="#features">Features</a></li>
     <li><a href="#visualizers">Scopes</a></li>
     <li><a href="#specs">Specs</a></li>
-    <li><a href="#api">API</a></li>
+    <li><a href="#integrations">Integrations</a></li>
+    <li><a href="#api">Ecosystem</a></li>
     <li><a href="https://github.com/Boof2015/astra/wiki" target="_blank" rel="noopener">Wiki</a></li>
     <li><a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="nav-download">Download</a></li>
   </ul>
@@ -1337,7 +1459,7 @@ footer {
     <h1>ASTRA</h1>
     <p class="hero-sub">Audiophile desktop music player</p>
     <p class="hero-desc">
-      A music player for people who still have a music library. Your FLACs, your MP3s, your carefully tagged collection — played back the way it was meant to sound.
+      A music player for people who still have a music library. Your FLACs, your MP3s, your carefully tagged collection, played back the way it was meant to sound.
     </p>
     <div class="hero-actions">
       <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="btn-primary">
@@ -1373,7 +1495,7 @@ footer {
     <div class="feature-card">
       <div class="feature-tag">Formats</div>
       <h3>Everything plays</h3>
-      <p>FLAC, MP3, WAV, OGG, AAC, M4A, OPUS, WMA, AIFF — native decoding with an FFmpeg fallback for the rest.</p>
+      <p>FLAC, MP3, WAV, OGG, AAC, M4A, OPUS, WMA, AIFF natively, with an FFmpeg fallback for the rest.</p>
     </div>
     <div class="feature-card">
       <div class="feature-tag">Library</div>
@@ -1395,6 +1517,21 @@ footer {
       <h3>Proper audio settings</h3>
       <p>Output device selection, loudness normalization, multichannel support with per-channel remapping, and Bluetooth delay calibration.</p>
     </div>
+    <div class="feature-card">
+      <div class="feature-tag">Spatial</div>
+      <h3>Dolby Atmos decoding</h3>
+      <p>Multichannel Atmos decoding that works without Atmos-compatible hardware. Decode and play back spatial tracks natively.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Library</div>
+      <h3>Metadata editor</h3>
+      <p>Edit tags, artwork, and metadata directly inside the player. No need to switch to a separate tool to fix a misspelled artist.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Navigation</div>
+      <h3>Quick Launch</h3>
+      <p>A keyboard shortcut to jump anywhere in your library without touching the mouse. Search tracks, albums, and artists instantly.</p>
+    </div>
   </div>
 </section>
 
@@ -1405,13 +1542,13 @@ footer {
   <div class="viz-header">
     <div class="section-label"><span>//</span> SECTION_02</div>
     <h2>Seven scopes. Your layout.</h2>
-    <p>Real-time visualizers powered by native C++. Seven scopes, fully customizable — drag, resize, and arrange them however you want. The analysis path is independent from output routing, so scopes always reflect the source material.</p>
+    <p>Real-time visualizers powered by native C++. Seven scopes, fully customizable. Drag, resize, and arrange them however you want. The analysis path is independent from output routing, so scopes always reflect the source material.</p>
   </div>
   <div class="viz-grid">
     <div class="viz-card">
       <div class="viz-preview">
         <video autoplay muted loop style="width: 100%; height: 100%; object-fit: cover;">
-          <source src="assets/oscilloscope.mkv" type="video/x-matroska">
+          <source src="assets/oscilloscope.mp4" type="video/mp4">
         </video>
       </div>
       <div class="viz-info">
@@ -1422,7 +1559,7 @@ footer {
     <div class="viz-card">
       <div class="viz-preview">
         <video autoplay muted loop style="width: 100%; height: 100%; object-fit: cover;">
-          <source src="assets/spectrum.mkv" type="video/x-matroska">
+          <source src="assets/spectrum.mp4" type="video/mp4">
         </video>
       </div>
       <div class="viz-info">
@@ -1433,12 +1570,12 @@ footer {
     <div class="viz-card">
       <div class="viz-preview">
         <video autoplay muted loop style="width: 100%; height: 100%; object-fit: cover;">
-          <source src="assets/vectorscope.mkv" type="video/x-matroska">
+          <source src="assets/vectorscope.mp4" type="video/mp4">
         </video>
       </div>
       <div class="viz-info">
         <h3>Vectorscope</h3>
-        <p>Stereo phase imaging — visualize the spatial relationship between your left and right channels.</p>
+        <p>Stereo phase imaging. Visualize the spatial relationship between your left and right channels.</p>
       </div>
     </div>
   </div>
@@ -1447,11 +1584,11 @@ footer {
   <div class="rack-showcase">
     <div class="rack-text">
       <h3>Build your own rack.</h3>
-      <p>Pick from seven scopes, arrange them in any layout, resize to fit your workflow. The entire scope rack is yours to customize — save presets and switch between setups on the fly.</p>
+      <p>Pick from seven scopes, arrange them in any layout, resize to fit your workflow. The entire scope rack is yours to customize. Save presets and switch between setups on the fly.</p>
     </div>
     <div class="showcase-frame">
       <video width="100%" autoplay muted loop style="display: block; margin-top: 36px;">
-        <source src="assets/scope edit.mkv" type="video/x-matroska">
+        <source src="assets/scope edit.mp4" type="video/mp4">
       </video>
     </div>
   </div>
@@ -1487,7 +1624,7 @@ footer {
 <section class="container fade-in" style="padding: 6rem 0;">
   <div class="section-label"><span>//</span> FULLSCREEN</div>
   <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 1rem;">Fullscreen mode</h2>
-  <p style="color: var(--text-secondary); font-weight: 400; max-width: 500px; margin-bottom: 2rem; font-size: 0.95rem;">Album art backdrop with ambient spectrum. Discord Rich Presence if you're into that.</p>
+  <p style="color: var(--text-secondary); font-weight: 400; max-width: 500px; margin-bottom: 2rem; font-size: 0.95rem;">Album art backdrop with ambient spectrum visualization. Lean back and let the music take over.</p>
   <div class="showcase-frame">
     <img src="assets/Fullscreen.png" alt="Astra fullscreen mode">
   </div>
@@ -1509,18 +1646,44 @@ footer {
 
 <div class="section-divider"></div>
 
-<!-- API -->
+<!-- Integrations -->
+<section class="integrations container fade-in" id="integrations">
+  <div class="integrations-header">
+    <div class="section-label"><span>//</span> INTEGRATIONS</div>
+    <h2>Connects to your services.</h2>
+    <p>Astra integrates with the services you already use. Everything is opt-in and off by default.</p>
+  </div>
+  <div class="integrations-grid">
+    <div class="integration-item">
+      <h3>Discord Rich Presence</h3>
+      <p>Show what you're listening to on your Discord profile, complete with cover art.</p>
+    </div>
+    <div class="integration-item">
+      <h3>Last.fm Scrobbling</h3>
+      <p>Track your listening history automatically. Disabled by default.</p>
+    </div>
+    <div class="integration-item">
+      <h3>Jellyfin &amp; Navidrome</h3>
+      <p>Browse and play your self-hosted media server library directly inside Astra.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Ecosystem -->
 <section class="container fade-in" style="padding: 6rem 0;" id="api">
+  <div class="section-label"><span>//</span> ECOSYSTEM</div>
+  <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 0.5rem;">Build on top of Astra.</h2>
+  <p style="color: var(--text-secondary); font-weight: 400; max-width: 520px; margin-bottom: 3rem; font-size: 0.95rem;">A local REST API lets external tools read playback state, subscribe to real-time updates, and optionally control playback. Loopback only, bearer token auth, disabled by default.</p>
+
   <div class="api-content">
     <div class="api-text">
-      <div class="section-label"><span>//</span> API</div>
-      <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 1rem;">Build on top of Astra.</h2>
-      <p style="color: var(--text-secondary); font-weight: 400; max-width: 440px; font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.5rem;">A local REST API for reading playback state, subscribing to real-time updates via SSE, and optionally controlling playback. Loopback only, bearer token auth, disabled by default. You decide what external tools can see and do.</p>
       <ul class="api-features">
-        <li><span class="api-tag read">GET</span> /v1/now-playing — track, artist, album, state, position</li>
-        <li><span class="api-tag read">GET</span> /v1/events — real-time SSE stream of playback updates</li>
-        <li><span class="api-tag read">GET</span> /v1/artwork/current — current track cover art bytes</li>
-        <li><span class="api-tag write">POST</span> /v1/control — play, pause, next, previous, toggle-favorite</li>
+        <li><span class="api-tag read">GET</span> /v1/now-playing - track, artist, album, state, position</li>
+        <li><span class="api-tag read">GET</span> /v1/events - real-time SSE stream of playback updates</li>
+        <li><span class="api-tag read">GET</span> /v1/artwork/current - current track cover art bytes</li>
+        <li><span class="api-tag write">POST</span> /v1/control - play, pause, next, previous, toggle-favorite</li>
         <li><span class="api-tag opt">OPT-IN</span> Controls require a separate toggle in settings</li>
       </ul>
       <a href="https://github.com/Boof2015/astra/wiki/Astra-API" target="_blank" rel="noopener" class="btn-outline" style="margin-top: 1.5rem; font-size: 0.78rem;">
@@ -1554,6 +1717,17 @@ footer {
       </div>
     </div>
   </div>
+
+  <!-- Prism -->
+  <div class="prism-showcase">
+    <div class="prism-text">
+      <h3>Prism <span class="coming-soon-tag">Coming Soon</span></h3>
+      <p>Prism is a standalone audio metering app built on a port of Astra's C++ scope engine. It monitors your system output with the same scopes you know from Astra. Its Astra module connects through the Astra API to show the currently playing track and control playback directly from the meter display.</p>
+    </div>
+    <div class="showcase-frame">
+      <img src="assets/Prism.png" alt="Prism - standalone scope visualizer" style="display: block; margin-top: 36px;">
+    </div>
+  </div>
 </section>
 
 <div class="section-divider"></div>
@@ -1585,6 +1759,7 @@ footer {
         </td>
         <td><span class="status-dot native"></span>Native + FFmpeg</td>
       </tr>
+      <tr><td>Spatial Audio</td><td>Dolby Atmos multichannel decoding</td><td><span class="status-dot native"></span>No special hardware</td></tr>
       <tr><td>Equalizer</td><td>Parametric, 10-band, AutoEQ import</td><td><span class="status-dot native"></span>Web Audio</td></tr>
       <tr><td>Platforms</td><td>Windows, macOS, Linux</td><td><span class="status-dot native"></span>Cross-platform</td></tr>
       <tr><td>License</td><td>GNU General Public License v3.0</td><td><span class="status-dot native"></span>Open Source</td></tr>
@@ -1619,7 +1794,7 @@ footer {
     </div>
     <div class="dl-aur">
       <a href="https://aur.archlinux.org/packages/astra-music-bin" target="_blank" rel="noopener">
-        Also available on the <strong>AUR</strong> <span style="opacity:0.5">— astra-music-bin</span>
+        Also available on the <strong>AUR</strong> <span style="opacity:0.5">// astra-music-bin</span>
       </a>
     </div>
   </div>
@@ -1645,7 +1820,7 @@ footer {
 <footer>
   <div class="container">
     <div class="footer-inner">
-      <div class="footer-left">© 2026 Astra — Made by <a href="https://github.com/Boof2015" target="_blank" rel="noopener">Boof2015</a></div>
+      <div class="footer-left">© 2026 Astra // Made by <a href="https://github.com/Boof2015" target="_blank" rel="noopener">Boof2015</a></div>
       <ul class="footer-links">
         <li><a href="https://github.com/Boof2015/astra" target="_blank" rel="noopener">GitHub</a></li>
         <li><a href="https://github.com/Boof2015/astra/wiki" target="_blank" rel="noopener">Wiki</a></li>
@@ -1654,7 +1829,7 @@ footer {
       </ul>
     </div>
     <div class="footer-status">
-      <span class="online-dot"></span> GPL-3.0 — OPEN SOURCE — [EOS]
+      <span class="online-dot"></span> GPL-3.0 // OPEN SOURCE // [EOS]
     </div>
   </div>
 </footer>
