@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prism · Audio Visualizer & Meter Rack</title>
+<meta name="description" content="A desktop visualizer and meter rack that taps into your system audio. Seven real-time scopes, themeable, built on a native C++ engine. A window into what you're hearing.">
+<meta name="theme-color" content="#06060b">
+
+<!-- Open Graph -->
+<meta property="og:title" content="Prism · Audio Visualizer & Meter Rack">
+<meta property="og:description" content="A window into what you're hearing. Seven real-time scopes, themeable, pro audio engine under the hood.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://astramusic.dev/prism/">
+
+<!-- Fonts: Inter (UI) + JetBrains Mono (data/labels) — same as astra -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg-primary: #06060b;
+  --bg-secondary: #0c0c14;
+  --bg-card: #0e0e18;
+  --bg-card-hover: #12121e;
+  --border: #1a1a2e;
+  --border-bright: #252540;
+  --text-primary: #e8e8f0;
+  --text-secondary: #8888a8;
+  --text-muted: #55556e;
+  --accent: #38bdf8;
+  --accent-dim: #2196cc;
+  --accent-glow: rgba(56, 189, 248, 0.12);
+  --accent-glow-strong: rgba(56, 189, 248, 0.25);
+  --green: #4ade80;
+  --green-dim: rgba(74, 222, 128, 0.1);
+  --mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --radius: 6px;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Prism-only: used exclusively on interaction states */
+  --prism-red:    #f87171;
+  --prism-orange: #fbbf24;
+  --prism-green:  #4ade80;
+  --prism-cyan:   #38bdf8;
+  --prism-violet: #a855f7;
+  --prism-gradient: linear-gradient(90deg,
+    var(--prism-red)    0%,
+    var(--prism-orange) 25%,
+    var(--prism-green)  50%,
+    var(--prism-cyan)   75%,
+    var(--prism-violet) 100%);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) var(--bg-primary);
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; display: block; }
+
+::selection { background: var(--accent); color: var(--bg-primary); }
+
+/* Ambient: waveform trace replaces astra's starfield */
+#waveform-bg {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.topo-grid {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image:
+    linear-gradient(var(--accent) 1px, transparent 1px),
+    linear-gradient(90deg, var(--accent) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.container {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(6, 6, 11, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.nav-logo-mark {
+  width: 34px; height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.nav-logo-mark svg { width: 100%; height: 100%; display: block; }
+.nav-logo-mark svg path { fill: var(--text-primary); transition: fill var(--transition); }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  list-style: none;
+}
+
+.nav-links a {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color var(--transition);
+}
+
+.nav-links a:hover { color: var(--text-primary); }
+
+.nav-back-astra {
+  font-family: var(--mono) !important;
+  font-size: 0.68rem !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted) !important;
+}
+.nav-back-astra:hover { color: var(--accent) !important; }
+
+.nav-download {
+  font-family: var(--mono) !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em;
+  background: var(--accent);
+  color: var(--bg-primary) !important;
+  padding: 0.5rem 1.2rem;
+  border-radius: var(--radius);
+  transition: all var(--transition) !important;
+}
+
+.nav-download:hover {
+  background: #5fc9f8 !important;
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.nav-menu-btn {
+  display: none;
+  flex-direction: column;
+  background: none;
+  border: none;
+  cursor: pointer;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  z-index: 101;
+}
+
+.nav-menu-btn span {
+  width: 24px;
+  height: 2px;
+  background: var(--text-primary);
+  border-radius: 1px;
+  transition: all var(--transition);
+  display: block;
+}
+
+.nav-menu-btn.active span:nth-child(1) { transform: rotate(45deg) translate(8px, 8px); }
+.nav-menu-btn.active span:nth-child(2) { opacity: 0; }
+.nav-menu-btn.active span:nth-child(3) { transform: rotate(-45deg) translate(8px, -8px); }
+
+/* ── Section labels ── */
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+.section-label span { color: var(--accent-dim); }
+
+/* ── HERO (wide banner layout) ── */
+.hero {
+  padding: 8rem 2rem 2rem;
+  position: relative;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 160px;
+  background: linear-gradient(transparent, var(--bg-primary));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hero-text {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 720px;
+}
+
+.hero-badge {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 0.45rem 1.1rem;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 100px;
+  margin-bottom: 2rem;
+  background: var(--accent-glow);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.hero-badge .ver { color: var(--text-muted); }
+
+.hero h1 {
+  font-family: var(--sans);
+  font-size: clamp(3.2rem, 8vw, 6.5rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  margin-bottom: 0.7rem;
+  color: var(--text-primary);
+  position: relative;
+  transition: text-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prismatic chromatic aberration — the visual signature.
+   Played once shortly after page load, and on hover. */
+.hero h1.split,
+.hero h1:hover {
+  text-shadow:
+    -1.5px 0 0 rgba(248, 113, 113, 0.85),
+     1.5px 0 0 rgba(168, 85, 247, 0.85),
+     0 0 18px rgba(56, 189, 248, 0.25);
+}
+
+.hero-sub {
+  font-family: var(--sans);
+  font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.hero-desc {
+  max-width: 520px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.75;
+  margin-bottom: 2.5rem;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 3.5rem;
+}
+
+/* Hero video — ultrawide banner */
+.hero-reel {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+.hero-reel-inner {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5),
+              0 0 0 1px rgba(56, 189, 248, 0.06),
+              0 0 60px rgba(56, 189, 248, 0.04);
+  position: relative;
+}
+.hero-reel video {
+  width: 100%;
+  display: block;
+  background: #000;
+}
+.hero-reel img {
+  width: 100%;
+  display: block;
+}
+
+/* ── BUTTONS ── */
+.btn-primary {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bg-primary);
+  background: var(--accent);
+  padding: 0.85rem 1.9rem;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+.btn-primary:hover {
+  background: #5fc9f8;
+  transform: translateY(-1px);
+  animation: prism-glow 900ms ease-out;
+}
+/* Primary button hover: glow fans into spectrum, returns to cyan */
+@keyframes prism-glow {
+  0%   { box-shadow: 0 0 20px rgba(56, 189, 248, 0.35); }
+  30%  { box-shadow: 0 0 30px rgba(248, 113, 113, 0.45),
+                     0 0 30px rgba(74, 222, 128, 0.35),
+                     0 0 30px rgba(168, 85, 247, 0.45); }
+  60%  { box-shadow: 0 0 26px rgba(56, 189, 248, 0.5),
+                     0 0 40px rgba(168, 85, 247, 0.25); }
+  100% { box-shadow: 0 0 30px var(--accent-glow-strong); }
+}
+
+.btn-outline {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  padding: 0.85rem 1.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-bright);
+  cursor: pointer;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-outline:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.02);
+}
+
+/* ── SECTION DIVIDER (matches astra) ── */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+  margin: 0 auto;
+  max-width: 600px;
+}
+
+/* ── SHOWCASE FRAME ── */
+.showcase-frame {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(56, 189, 248, 0.05);
+}
+.showcase-frame::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 36px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  z-index: 2;
+}
+.showcase-frame::after {
+  content: '● ● ●';
+  position: absolute;
+  top: 10px; left: 14px;
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: var(--text-muted);
+  z-index: 3;
+  opacity: 0.4;
+}
+.showcase-frame img {
+  width: 100%;
+  display: block;
+  margin-top: 36px;
+}
+
+/* ── CAPTURE / ENGINE ── */
+.capture-section { padding: 6rem 0; }
+
+.capture-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3rem;
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .capture-content { grid-template-columns: 1.15fr 0.85fr; gap: 4rem; }
+}
+
+.capture-text h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+}
+.capture-text p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 1.3rem;
+  font-size: 0.95rem;
+}
+.capture-text p:last-child { margin-bottom: 0; }
+
+/* Single featured number — real-time latency is the only claim worth framing */
+.capture-latency {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  padding: 2.5rem 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.capture-latency .readout-tag {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 1.1rem;
+}
+.capture-latency .readout {
+  font-family: var(--sans);
+  font-size: clamp(3.2rem, 7vw, 4.8rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+.capture-latency .readout .unit {
+  font-size: 0.38em;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-left: 0.15em;
+  letter-spacing: -0.02em;
+}
+.capture-latency .readout-sub {
+  margin-top: 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+/* Tick marks along the bottom as a scope-gutter flourish */
+.capture-latency .readout-scale {
+  margin-top: 1.4rem;
+  height: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 0.1rem;
+  opacity: 0.4;
+}
+.capture-latency .readout-scale span {
+  width: 1px;
+  background: var(--text-muted);
+}
+.capture-latency .readout-scale span:nth-child(5n+1) { height: 100%; background: var(--accent-dim); }
+.capture-latency .readout-scale span:not(:nth-child(5n+1)) { height: 50%; }
+
+/* ── PROFILES + THEMES ── */
+.pt-section { padding: 6rem 0; }
+
+.pt-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3rem;
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .pt-row { grid-template-columns: 1fr 1fr; gap: 4rem; }
+  .pt-row.reverse { direction: rtl; }
+  .pt-row.reverse > * { direction: ltr; }
+}
+
+.pt-text h2 {
+  font-family: var(--sans);
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+}
+.pt-text p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+.pt-text .filetype {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 0.2rem 0.55rem;
+  border-radius: 3px;
+  display: inline-block;
+  margin-bottom: 1rem;
+}
+
+.pt-image {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.pt-image img { width: 100%; display: block; }
+
+.pt-divider { margin: 5rem 0; }
+
+/* ── CHROMA / STREAMER ── */
+.chroma-section { padding: 6rem 0; }
+
+.chroma-header { margin-bottom: 2.5rem; max-width: 600px; }
+.chroma-header h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+}
+.chroma-header p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+
+/* ── ASTRA BRIDGE ── */
+.bridge-section { padding: 6rem 0; }
+
+.bridge-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  align-items: center;
+}
+@media (min-width: 900px) { .bridge-content { grid-template-columns: 1.1fr 0.9fr; gap: 4rem; } }
+
+.bridge-text h2 {
+  font-family: var(--sans);
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+}
+.bridge-text p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+}
+
+.bridge-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem;
+  background: var(--bg-card);
+  position: relative;
+  transition: border-color var(--transition), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.bridge-card:hover {
+  border-color: var(--border-bright);
+  box-shadow:
+    -12px 0 32px -12px rgba(74, 222, 128, 0.18),
+    12px 0 32px -12px rgba(56, 189, 248, 0.18);
+}
+.bridge-card .bridge-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--green);
+  margin-bottom: 1rem;
+}
+.bridge-card h3 {
+  font-family: var(--sans);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.bridge-card p {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+/* ── SPECS (terminal-style data list, not astra's table) ── */
+.specs { padding: 6rem 0; }
+
+.specs h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 2.5rem;
+}
+
+.specs-sheet {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.specs-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 1.2rem;
+  background: rgba(255,255,255,0.015);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.specs-sheet-head .lang {
+  font-size: 0.56rem;
+  color: var(--accent-dim);
+}
+
+.specs-sheet-body { padding: 0.5rem 0; }
+
+.spec-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 1.5rem;
+  padding: 0.85rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  align-items: baseline;
+}
+.spec-row:last-child { border-bottom: none; }
+.spec-row .key {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.spec-row .val {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.spec-row .val .emph { color: var(--text-primary); font-weight: 500; }
+
+/* ── DOWNLOAD ── */
+.download-section { padding: 6rem 0; }
+
+.download-content {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.download-content h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.download-content > p {
+  color: var(--text-secondary);
+  margin-bottom: 3rem;
+  font-size: 0.95rem;
+}
+
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.dl-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem 1.5rem;
+  background: var(--bg-card);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block;
+  position: relative;
+}
+.dl-card:hover {
+  border-color: var(--border-bright);
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+  /* Soft prismatic halo behind the edges */
+  box-shadow:
+    -12px 0 32px -12px rgba(248, 113, 113, 0.16),
+    12px 0 32px -12px rgba(168, 85, 247, 0.16),
+    0 -8px 26px -10px rgba(56, 189, 248, 0.12),
+    0 10px 26px -10px rgba(74, 222, 128, 0.10),
+    0 8px 30px rgba(0,0,0,0.35);
+}
+
+.dl-icon { font-size: 1.6rem; margin-bottom: 0.7rem; opacity: 0.7; }
+
+.dl-card h3 {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.dl-card .dl-formats {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── BUILD ── */
+.build-section { padding: 4rem 0 6rem; }
+
+.build-section h3 {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.code-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.2rem;
+  background: rgba(255,255,255,0.015);
+  border-bottom: 1px solid var(--border);
+}
+.code-header span {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+.code-header .lang {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-dim);
+}
+.code-body { padding: 1.2rem 1.5rem; overflow-x: auto; }
+.code-body pre {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+.code-body .cmd { color: var(--green); }
+.code-body .comment { color: var(--text-muted); }
+.code-body .arg { color: var(--accent); }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 3rem 0;
+  position: relative;
+  z-index: 1;
+}
+
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.footer-left {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.footer-left a {
+  color: var(--text-secondary);
+  transition: color var(--transition);
+}
+.footer-left a:hover { color: var(--text-primary); }
+
+.footer-links {
+  display: flex;
+  gap: 1.5rem;
+  list-style: none;
+}
+.footer-links a {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+.footer-links a:hover { color: var(--text-primary); }
+
+.footer-status {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  padding-top: 2rem;
+  margin-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  video { display: none; }
+  .hero h1.split { text-shadow: none; }
+  .btn-primary:hover { animation: none; }
+}
+
+/* ── Fade-in ── */
+.fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.fade-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .nav-download { padding: 0.45rem 1rem; font-size: 0.65rem !important; }
+  .download-grid { grid-template-columns: 1fr; max-width: 340px; margin: 0 auto 2rem; }
+  .hero-reel { padding: 0 1.5rem; }
+  .section-divider { max-width: 90%; }
+  .spec-row { grid-template-columns: 130px 1fr; gap: 1rem; }
+}
+
+@media (max-width: 768px) {
+  nav { padding: 0.85rem 1.2rem; }
+  .nav-logo { font-size: 0.75rem; gap: 0.4rem; }
+  .nav-logo-mark { width: 28px; height: 28px; }
+  .nav-menu-btn { display: flex !important; }
+  .nav-links {
+    position: absolute; top: 100%; left: 0; right: 0;
+    display: flex !important; flex-direction: column; gap: 0;
+    background: rgba(6, 6, 11, 0.95);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 0;
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  .nav-links.mobile-open { max-height: 560px; }
+  .nav-links.mobile-open li { border-bottom: 1px solid var(--border); }
+  .nav-links li { padding: 0.8rem 1.5rem; }
+  .nav-links a { display: block; }
+  .nav-download { padding: 0.4rem 0.9rem; font-size: 0.6rem !important; }
+  .container { padding: 0 1.5rem; }
+  .hero { padding: 6.5rem 1.5rem 2rem; }
+  .hero h1 { font-size: 2.6rem; }
+  .hero-sub { font-size: 0.9rem; }
+  .hero-desc { font-size: 0.88rem; margin-bottom: 2rem; }
+  .hero-reel { padding: 0 1rem; }
+  .capture-section, .pt-section, .chroma-section, .bridge-section { padding: 4rem 0; }
+  .pt-row.reverse { direction: ltr; }
+  .pt-divider { margin: 3rem 0; }
+  .capture-latency { padding: 2rem 1.4rem; }
+  .specs { padding: 4rem 0; }
+  .specs-sheet-body { padding: 0.3rem 0; }
+  .spec-row { grid-template-columns: 1fr; gap: 0.3rem; padding: 0.7rem 1.1rem; }
+  .spec-row .val { font-size: 0.84rem; }
+  .specs h2 { font-size: 1.6rem; margin-bottom: 1.8rem; }
+  .download-section { padding: 4rem 0; }
+  .download-content h2 { font-size: 1.6rem; }
+  .download-content > p { font-size: 0.88rem; margin-bottom: 2rem; }
+  .dl-card { border-radius: 8px; padding: 1.3rem 1rem; }
+  .build-section { padding: 3rem 0 4rem; }
+  .code-body pre { font-size: 0.7rem; line-height: 1.6; }
+  footer { padding: 2.5rem 0; }
+  .footer-inner { flex-direction: column; gap: 1.5rem; }
+  .footer-links { gap: 1rem; flex-wrap: wrap; justify-content: center; }
+}
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 2.2rem; }
+  .hero-badge { font-size: 0.55rem; padding: 0.3rem 0.8rem; }
+  .btn-primary { font-size: 0.68rem; padding: 0.7rem 1.4rem; }
+  .btn-outline { font-size: 0.75rem; padding: 0.7rem 1.4rem; }
+  .capture-latency { padding: 1.8rem 1.2rem; }
+  .capture-latency .readout { font-size: 2.8rem; }
+  .bridge-card { padding: 1.5rem; }
+  .download-grid { gap: 0.8rem; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="waveform-bg"></canvas>
+<div class="topo-grid"></div>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">
+    <span class="nav-logo-mark" aria-hidden="true">
+      <svg viewBox="0 0 675 540" xmlns="http://www.w3.org/2000/svg">
+        <g>
+          <path d="M429.005,240.019c1.742,-1.006 3.718,-1.535 5.729,-1.535c5.527,0 17.412,0 26.401,0c6.328,0 11.459,5.13 11.459,11.459l0,47.969c0,4.094 -2.184,7.877 -5.729,9.923c-29.927,17.278 -167.716,96.831 -188.613,108.895c-1.742,1.006 -3.718,1.535 -5.729,1.535c-9.919,0 -41.456,0 -58.657,0c-6.328,-0 -11.459,-5.13 -11.459,-11.459c0,-9.188 0,-21.759 0,-29.346c-0,-4.094 2.184,-7.877 5.729,-9.923c32.974,-19.038 197.892,-114.253 220.869,-127.519Z"/>
+          <path d="M266.17,121.735c2.011,-0 3.987,0.529 5.729,1.535c17.748,10.247 119.001,68.705 140.796,81.288c2.558,1.477 4.133,4.206 4.133,7.159c0,0.256 0,0.511 0,0.762c0,2.094 -1.121,4.029 -2.938,5.07c-10.641,6.1 -47.292,27.109 -61.53,35.27c-3.541,2.03 -7.893,2.023 -11.428,-0.018c-23.117,-13.347 -109.643,-63.302 -132.798,-76.671c-3.545,-2.047 -5.729,-5.83 -5.729,-9.924c-0,-8.35 -0,-22.847 -0,-33.013c0,-6.328 5.13,-11.459 11.459,-11.459c15.744,0 43.157,0 52.305,0Z"/>
+        </g>
+      </svg>
+    </span>
+    PRISM
+  </div>
+  <button class="nav-menu-btn" id="navMenuBtn" aria-label="Menu">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="#capture">Engine</a></li>
+    <li><a href="#profiles">Profiles</a></li>
+    <li><a href="#chroma">Streamers</a></li>
+    <li><a href="#specs">Specs</a></li>
+    <li><a href="/" class="nav-back-astra">← Astra</a></li>
+    <li><a href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener" class="nav-download">Download</a></li>
+  </ul>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-text">
+    <div class="hero-badge">
+      BETA <span class="ver">// GPL-3.0</span>
+    </div>
+    <h1 id="heroTitle">PRISM</h1>
+    <p class="hero-sub">Audio visualizer &amp; meter rack</p>
+    <p class="hero-desc">
+      Prism taps into your system audio and runs it through a rack of real-time scopes and meters. Whether you're mixing a track, tuning a room, or just like watching your music, it's a window into what you're hearing.
+    </p>
+    <div class="hero-actions">
+      <a href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener" class="btn-primary">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12L3 7h3V1h4v6h3L8 12z"/><path d="M14 14H2v-2h12v2z"/></svg>
+        Download
+      </a>
+      <a href="https://github.com/Boof2015/prism" target="_blank" rel="noopener" class="btn-outline">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        Source
+      </a>
+    </div>
+  </div>
+  <div class="hero-reel">
+    <div class="hero-reel-inner">
+      <video autoplay muted loop playsinline preload="metadata" poster="assets/scopes.png">
+        <source src="assets/prism-hero.mp4" type="video/mp4">
+      </video>
+    </div>
+  </div>
+</section>
+
+<!-- Capture / Engine -->
+<section class="capture-section container fade-in" id="capture">
+  <div class="capture-content">
+    <div class="capture-text">
+      <div class="section-label"><span>//</span> SECTION_01 / ENGINE</div>
+      <h2>Captures what you're hearing.</h2>
+      <p>
+        Prism pulls audio at the OS level, straight from CoreAudio on macOS, WASAPI on Windows, or PulseAudio on Linux. No virtual cables or routing hacks. Flip on device input mode when you want to analyze a mic or a line-in instead.
+      </p>
+      <p>
+        A native C++ analysis engine does the math. What you see is what you hear.
+      </p>
+    </div>
+    <div class="capture-latency">
+      <div class="readout-tag">// Capture to display</div>
+      <div class="readout">&lt;8<span class="unit">ms</span></div>
+      <div class="readout-sub">Real-time</div>
+      <div class="readout-scale" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Profiles + Themes -->
+<section class="pt-section container fade-in" id="profiles">
+  <div class="pt-row">
+    <div class="pt-text">
+      <div class="section-label"><span>//</span> SECTION_02 / PROFILES</div>
+      <span class="filetype">.prsm</span>
+      <h2>Your rack, saved and shared.</h2>
+      <p>
+        Save the whole rack as a profile. What's visible, how it's laid out, per-scope settings, popout window positions, all of it. Keep separate setups for mixing, listening, and streaming. Share them around like presets.
+      </p>
+    </div>
+    <div class="pt-image">
+      <img src="assets/scopes.png" alt="Prism scopes arranged in a rack">
+    </div>
+  </div>
+
+  <div class="pt-divider section-divider"></div>
+
+  <div class="pt-row reverse">
+    <div class="pt-text">
+      <div class="section-label"><span>//</span> SECTION_02 / THEMES</div>
+      <span class="filetype">.iro</span>
+      <h2>Every color, yours.</h2>
+      <p>
+        Spectrum gradients, oscilloscope traces, vectorscope bands. Every color lives in an editable theme file. Build one in a text editor, drop it into the Themes folder, or grab something from the community.
+      </p>
+    </div>
+    <div class="pt-image">
+      <img src="assets/themes.png" alt="Prism theme showcase">
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Chroma / Streamers -->
+<section class="chroma-section container fade-in" id="chroma">
+  <div class="chroma-header">
+    <div class="section-label"><span>//</span> SECTION_03 / STREAMERS</div>
+    <h2>Chroma-ready out of the box.</h2>
+    <p>
+      Chroma key themes ship built in. Key the scopes out in OBS and drop them straight into your stream as transparent overlays. No masking, no compositing, no sweat.
+    </p>
+  </div>
+  <div class="pt-image">
+    <img src="assets/chroma.png" alt="Prism chroma key theme examples">
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Astra Bridge -->
+<section class="bridge-section container fade-in" id="bridge">
+  <div class="bridge-content">
+    <div class="bridge-text">
+      <div class="section-label"><span>//</span> SECTION_04 / ECOSYSTEM</div>
+      <h2>Runs next to Astra.</h2>
+      <p>
+        If you're already running <a href="/" style="color: var(--accent); border-bottom: 1px dashed var(--accent-dim);">Astra</a>, Prism talks to it over the local API. The Now Playing scope pulls cover art, track info, and playback controls, and sets them next to your meters.
+      </p>
+      <p>
+        Prism works fine on its own, too. Astra's just a nice sidecar.
+      </p>
+    </div>
+    <div class="bridge-card">
+      <div class="bridge-label">// Astra Integration</div>
+      <h3>Now Playing scope</h3>
+      <p>Live track info and transport controls via the Astra local API. Loopback only, opt-in, disabled by default. Spotify is supported too on macOS and Windows.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Specs -->
+<section class="specs container fade-in" id="specs">
+  <div class="section-label"><span>//</span> SECTION_05 / SPECS</div>
+  <h2>Under the hood</h2>
+  <div class="specs-sheet">
+    <div class="specs-sheet-head">
+      <span>prism.specs</span>
+      <span class="lang">DATASHEET</span>
+    </div>
+    <div class="specs-sheet-body">
+      <div class="spec-row">
+        <div class="key">Framework</div>
+        <div class="val">Electron and Vite, TypeScript front end</div>
+      </div>
+      <div class="spec-row">
+        <div class="key">Analysis</div>
+        <div class="val"><span class="emph">Native C++</span> DSP module</div>
+      </div>
+      <div class="spec-row">
+        <div class="key">Scopes</div>
+        <div class="val">Seven configurable scopes, plus Now Playing</div>
+      </div>
+      <div class="spec-row">
+        <div class="key">Metering</div>
+        <div class="val">Integrated LUFS, VU, to broadcast standards</div>
+      </div>
+      <div class="spec-row">
+        <div class="key">Capture</div>
+        <div class="val">System audio and device input. No virtual cables.</div>
+      </div>
+      <div class="spec-row">
+        <div class="key">Latency</div>
+        <div class="val"><span class="emph">Under 8ms</span>, capture to display</div>
+      </div>
+      <div class="spec-row">
+        <div class="key">Platforms</div>
+        <div class="val">Windows, macOS, Linux</div>
+      </div>
+      <div class="spec-row">
+        <div class="key">License</div>
+        <div class="val">GNU General Public License v3.0</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Download -->
+<section class="download-section container fade-in" id="download">
+  <div class="download-content">
+    <div class="section-label"><span>//</span> DOWNLOAD</div>
+    <h2>Get Prism</h2>
+    <p>Prebuilt binaries for Windows, macOS, and Linux on the releases page. Or build it yourself.</p>
+    <div class="download-grid">
+      <a href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener" class="dl-card">
+        <div class="dl-icon">⊞</div>
+        <h3>Windows</h3>
+        <div class="dl-formats">NSIS + PORTABLE</div>
+      </a>
+      <a href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener" class="dl-card">
+        <div class="dl-icon">⌘</div>
+        <h3>macOS</h3>
+        <div class="dl-formats">DMG + ZIP</div>
+      </a>
+      <a href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener" class="dl-card">
+        <div class="dl-icon">⟩_</div>
+        <h3>Linux</h3>
+        <div class="dl-formats">APPIMAGE + DEB</div>
+      </a>
+    </div>
+  </div>
+  <div class="build-section">
+    <h3>Or build from source</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span>terminal</span>
+        <span class="lang">BASH</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cmd">git clone</span> <span class="arg">https://github.com/Boof2015/prism.git</span>
+<span class="cmd">cd</span> prism
+<span class="cmd">npm install</span>        <span class="comment"># compiles the native module</span>
+<span class="cmd">npm run</span> <span class="arg">dev</span>        <span class="comment"># development</span>
+<span class="cmd">npm run</span> <span class="arg">dist</span>       <span class="comment"># package for current platform</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">© 2026 Prism // Made by <a href="https://github.com/Boof2015" target="_blank" rel="noopener">Boof2015</a></div>
+      <ul class="footer-links">
+        <li><a href="/">Astra</a></li>
+        <li><a href="https://github.com/Boof2015/prism" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener">Releases</a></li>
+        <li><a href="https://discord.gg/hsKK8Kr9Nj" target="_blank" rel="noopener">Themes</a></li>
+        <li><a href="https://ko-fi.com/boof2015" target="_blank" rel="noopener">Ko-fi</a></li>
+      </ul>
+    </div>
+    <div class="footer-status">
+      GPL-3.0 // OPEN SOURCE
+    </div>
+  </div>
+</footer>
+
+<script>
+// Waveform background — quiet sine trace drifting across the page
+(function() {
+  const c = document.getElementById('waveform-bg');
+  const ctx = c.getContext('2d');
+  let w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function resize() {
+    w = innerWidth; h = innerHeight;
+    c.width = w * dpr; c.height = h * dpr;
+    c.style.width = w + 'px'; c.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function drawTrace(phase) {
+    ctx.clearRect(0, 0, w, h);
+    // Two stacked sine traces, both faint cyan
+    const mids = [h * 0.32, h * 0.68];
+    const amps = [h * 0.045, h * 0.028];
+    const freqs = [0.0055, 0.0082];
+    const speeds = [1, -0.7];
+    for (let i = 0; i < mids.length; i++) {
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 2) {
+        const y = mids[i] + Math.sin(x * freqs[i] + phase * speeds[i]) * amps[i];
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = `rgba(56, 189, 248, ${0.05 + i * 0.02})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  function loop(t) {
+    drawTrace(t * 0.0006);
+    requestAnimationFrame(loop);
+  }
+
+  addEventListener('resize', resize);
+  resize();
+
+  if (reduceMotion) {
+    drawTrace(0);
+  } else {
+    requestAnimationFrame(loop);
+  }
+})();
+
+// Scroll fade-in
+(function() {
+  const obs = new IntersectionObserver(es => {
+    es.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
+})();
+
+// Auto-play videos when visible — paused if user prefers reduced motion
+(function() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const videos = document.querySelectorAll('video[autoplay]');
+  if (reduceMotion) {
+    videos.forEach(v => { v.removeAttribute('autoplay'); v.pause(); });
+    return;
+  }
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) entry.target.play().catch(() => {});
+      else entry.target.pause();
+    });
+  }, { threshold: 0.25 });
+  videos.forEach(video => obs.observe(video));
+})();
+
+// Hero chromatic aberration — play once on load, also on hover
+(function() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const h1 = document.getElementById('heroTitle');
+  if (!h1 || reduceMotion) return;
+  setTimeout(() => {
+    h1.classList.add('split');
+    setTimeout(() => h1.classList.remove('split'), 700);
+  }, 900);
+})();
+
+// Mobile menu toggle
+(function() {
+  const menuBtn = document.getElementById('navMenuBtn');
+  const navLinks = document.getElementById('navLinks');
+  if (!menuBtn || !navLinks) return;
+  menuBtn.addEventListener('click', () => {
+    menuBtn.classList.toggle('active');
+    navLinks.classList.toggle('mobile-open');
+  });
+  navLinks.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      menuBtn.classList.remove('active');
+      navLinks.classList.remove('mobile-open');
+    });
+  });
+})();
+</script>
+</body>
+</html>
