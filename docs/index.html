@@ -231,7 +231,7 @@ nav {
   flex-direction: column;
   align-items: center;
   position: relative;
-  z-index: 2;
+  z-index: 10;
 }
 
 .hero-screenshot {
@@ -398,6 +398,72 @@ nav {
   background: #5fc9f8;
   box-shadow: 0 0 30px var(--accent-glow);
   transform: translateY(-1px);
+}
+
+.dl-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.dl-split-main {
+  border-radius: var(--radius) 0 0 var(--radius);
+  padding-right: 1.2rem;
+}
+
+.dl-split-chevron {
+  padding: 0 0.7rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  border-left: 1px solid rgba(0,0,0,0.2);
+  gap: 0;
+}
+
+.dl-split-chevron svg { transition: transform 0.15s; }
+.dl-split.open .dl-split-chevron svg { transform: rotate(180deg); }
+
+.dl-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  min-width: 100%;
+  background: #0c0c14;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  z-index: 500;
+  white-space: nowrap;
+}
+
+.dl-split.open .dl-dropdown { display: block; }
+
+.dl-dropdown a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.dl-dropdown a:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+}
+
+.dl-dropdown .dl-sep {
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding: 0.4rem 1rem 0.2rem;
+  text-transform: uppercase;
+}
+
+.dl-dropdown .dl-sep:not(:first-child) {
+  border-top: 1px solid var(--border);
+  margin-top: 0.2rem;
 }
 
 .btn-outline {
@@ -1075,6 +1141,9 @@ nav {
 
 .dl-aur {
   margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .dl-aur a {
@@ -1087,6 +1156,14 @@ nav {
 
 .dl-aur a:hover { color: var(--accent); }
 .dl-aur strong { color: var(--text-secondary); }
+#winget-confirm {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s;
+  letter-spacing: 0.05em;
+}
 
 /* ── BUILD ── */
 .build-section { padding: 4rem 0 6rem; }
@@ -1463,10 +1540,16 @@ footer {
       A music player for people who still have a music library. Your FLACs, your MP3s, your carefully tagged collection, played back the way it was meant to sound.
     </p>
     <div class="hero-actions">
-      <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="btn-primary">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12L3 7h3V1h4v6h3L8 12z"/><path d="M14 14H2v-2h12v2z"/></svg>
-        Download
-      </a>
+      <div class="dl-split" id="dl-split">
+        <a id="hero-download" href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="btn-primary dl-split-main">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12L3 7h3V1h4v6h3L8 12z"/><path d="M14 14H2v-2h12v2z"/></svg>
+          <span id="hero-download-label">Download</span>
+        </a>
+        <button class="btn-primary dl-split-chevron" id="dl-chevron" aria-label="Other platforms" onclick="toggleDlDropdown(event)">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 3l4 4 4-4"/></svg>
+        </button>
+        <div class="dl-dropdown" id="dl-dropdown"></div>
+      </div>
       <a href="https://github.com/Boof2015/astra" target="_blank" rel="noopener" class="btn-outline">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         Source Code
@@ -1783,23 +1866,27 @@ footer {
       <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="dl-card">
         <div class="dl-icon">⊞</div>
         <h3>Windows</h3>
-        <div class="dl-formats">NSIS + PORTABLE</div>
+        <div class="dl-formats">NSIS</div>
       </a>
       <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="dl-card">
         <div class="dl-icon">⌘</div>
         <h3>macOS</h3>
-        <div class="dl-formats">DMG + ZIP</div>
+        <div class="dl-formats">DMG</div>
       </a>
       <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="dl-card">
         <div class="dl-icon">⟩_</div>
         <h3>Linux</h3>
-        <div class="dl-formats">APPIMAGE + DEB</div>
+        <div class="dl-formats">APPIMAGE + DEB + TAR + RPM</div>
       </a>
     </div>
     <div class="dl-aur">
       <a href="https://aur.archlinux.org/packages/astra-music-bin" target="_blank" rel="noopener">
         Also available on the <strong>AUR</strong> <span style="opacity:0.5">// astra-music-bin</span>
       </a>
+      <a href="#" class="winget-copy" onclick="copyWinget(event)">
+        Also available on <strong>Winget</strong> <span style="opacity:0.5">// winget install Boof2015.Astra</span>
+      </a>
+      <span id="winget-confirm"></span>
     </div>
   </div>
   <div class="build-section">
@@ -1920,6 +2007,98 @@ footer {
     });
   });
 })();
+
+// Platform-detect + dropdown via GitHub API
+(function () {
+  const ua = navigator.userAgent;
+  const btn = document.getElementById('hero-download');
+  const label = document.getElementById('hero-download-label');
+  const dropdown = document.getElementById('dl-dropdown');
+  const releases = 'https://github.com/Boof2015/astra/releases';
+
+  const platformOrder = [
+    { label: 'Windows', ext: ['.exe'], sep: true },
+    { label: 'macOS',   ext: ['.dmg'], sep: true },
+    { label: 'Linux',   ext: ['.AppImage', '.deb', '.rpm', '.tar.gz', '.tar.xz'], sep: true },
+  ];
+
+  function detectPlatform() {
+    if (/Android|iPhone|iPad|iPod/i.test(ua)) return null;
+    if (/Windows/i.test(ua)) return 'Windows';
+    if (/Mac/i.test(ua)) return 'macOS';
+    if (/Linux/i.test(ua)) return 'Linux';
+    return null;
+  }
+
+  function extFor(name) {
+    for (const p of platformOrder)
+      for (const e of p.ext)
+        if (name.toLowerCase().endsWith(e.toLowerCase())) return p.label;
+    return null;
+  }
+
+  function buildDropdown(assets) {
+    const groups = {};
+    for (const a of assets) {
+      const plat = extFor(a.name);
+      if (!plat) continue;
+      (groups[plat] = groups[plat] || []).push(a);
+    }
+    let html = '';
+    for (const p of platformOrder) {
+      if (!groups[p.label]) continue;
+      html += `<div class="dl-sep">${p.label}</div>`;
+      for (const a of groups[p.label]) {
+        const ext = a.name.split('.').pop().toUpperCase();
+        html += `<a href="${a.browser_download_url}" target="_blank" rel="noopener">${ext} &mdash; <span style="opacity:0.5">${a.name}</span></a>`;
+      }
+    }
+    html += `<div class="dl-sep" style="border-top:1px solid var(--border-bright,#2a2a3a);margin-top:0.2rem;padding-top:0.4rem"></div><a href="${releases}" target="_blank" rel="noopener">All releases &rarr;</a>`;
+    dropdown.innerHTML = html;
+  }
+
+  function setMainButton(assets) {
+    const plat = detectPlatform();
+    if (!plat) return;
+    const match = assets.find(a => extFor(a.name) === plat && (plat !== 'Linux' || a.name.endsWith('.AppImage')));
+    if (match) {
+      btn.href = match.browser_download_url;
+      label.textContent = `Download for ${plat}`;
+    } else {
+      btn.href = releases;
+      label.textContent = `Download for ${plat}`;
+    }
+  }
+
+  fetch('https://api.github.com/repos/Boof2015/astra/releases/latest')
+    .then(r => r.json())
+    .then(data => {
+      const assets = data.assets || [];
+      setMainButton(assets);
+      buildDropdown(assets);
+    })
+    .catch(() => { /* leave defaults */ });
+})();
+
+function toggleDlDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('dl-split').classList.toggle('open');
+}
+
+document.addEventListener('click', () => {
+  document.getElementById('dl-split')?.classList.remove('open');
+});
+
+function copyWinget(e) {
+  e.preventDefault();
+  navigator.clipboard.writeText('winget install Boof2015.Astra').then(() => {
+    const el = document.getElementById('winget-confirm');
+    el.textContent = '// copied';
+    el.style.opacity = '1';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.style.opacity = '0', 2000);
+  });
+}
 </script>
 </body>
 </html>
