@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XLRC · Multilingual Lyric Format</title>
+<meta name="description" content="XLRC extends the LRC lyric format with inline translations, furigana, word-level timing, and multi-voice attribution. One human-readable file per track, with a real, open spec.">
+<meta name="theme-color" content="#06060b">
+
+<!-- Open Graph -->
+<meta property="og:title" content="XLRC · Multilingual Lyric Format">
+<meta property="og:description" content="LRC, extended. Translations, furigana, and word-level timing in a single human-readable file with an actual spec.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://astramusic.dev/xlrc/">
+
+<!-- Fonts: Inter (UI) + JetBrains Mono (data/labels), same as astra & prism -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg-primary: #06060b;
+  --bg-secondary: #0c0c14;
+  --bg-card: #0e0e18;
+  --bg-card-hover: #12121e;
+  --border: #1a1a2e;
+  --border-bright: #252540;
+  --text-primary: #e8e8f0;
+  --text-secondary: #8888a8;
+  --text-muted: #55556e;
+  --accent: #38bdf8;
+  --accent-dim: #2196cc;
+  --accent-glow: rgba(56, 189, 248, 0.12);
+  --accent-glow-strong: rgba(56, 189, 248, 0.25);
+  --green: #4ade80;
+  --green-dim: rgba(74, 222, 128, 0.1);
+  --violet: #a855f7;
+  --mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --radius: 6px;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) var(--bg-primary);
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; display: block; }
+
+::selection { background: var(--accent); color: var(--bg-primary); }
+
+.topo-grid {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image:
+    linear-gradient(var(--accent) 1px, transparent 1px),
+    linear-gradient(90deg, var(--accent) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(6, 6, 11, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.nav-logo-mark {
+  width: 30px; height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-logo-mark svg { width: 100%; height: 100%; display: block; }
+.nav-logo-mark rect { fill: var(--text-primary); }
+.nav-logo-mark rect.accent { fill: var(--accent); }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  list-style: none;
+}
+
+.nav-links a {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color var(--transition);
+}
+.nav-links a:hover { color: var(--text-primary); }
+
+.nav-back-astra {
+  font-family: var(--mono) !important;
+  font-size: 0.68rem !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted) !important;
+}
+.nav-back-astra:hover { color: var(--accent) !important; }
+
+.nav-cta {
+  font-family: var(--mono) !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em;
+  background: var(--accent);
+  color: var(--bg-primary) !important;
+  padding: 0.5rem 1.2rem;
+  border-radius: var(--radius);
+  transition: all var(--transition) !important;
+}
+.nav-cta:hover {
+  background: #5fc9f8 !important;
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.nav-menu-btn {
+  display: none;
+  flex-direction: column;
+  background: none;
+  border: none;
+  cursor: pointer;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  z-index: 101;
+}
+.nav-menu-btn span {
+  width: 24px; height: 2px;
+  background: var(--text-primary);
+  border-radius: 1px;
+  transition: all var(--transition);
+  display: block;
+}
+.nav-menu-btn.active span:nth-child(1) { transform: rotate(45deg) translate(8px, 8px); }
+.nav-menu-btn.active span:nth-child(2) { opacity: 0; }
+.nav-menu-btn.active span:nth-child(3) { transform: rotate(-45deg) translate(8px, -8px); }
+
+/* ── Section labels / dividers ── */
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+.section-label span { color: var(--accent-dim); }
+
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+  margin: 0 auto;
+  max-width: 600px;
+}
+
+/* ── HERO ── */
+.hero {
+  padding: 9rem 2rem 4rem;
+  position: relative;
+  max-width: 820px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 4rem; left: 50%;
+  width: 600px; height: 360px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, var(--accent-glow), transparent 70%);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+}
+.hero > * { position: relative; z-index: 1; }
+
+.hero-badge {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 0.45rem 1.1rem;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 100px;
+  margin-bottom: 2rem;
+  background: var(--accent-glow);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.hero-badge .ver { color: var(--text-muted); }
+
+.hero h1 {
+  font-family: var(--sans);
+  font-size: clamp(3.4rem, 9vw, 6.5rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  margin-bottom: 0.8rem;
+  color: var(--text-primary);
+}
+
+.hero-sub {
+  font-family: var(--sans);
+  font-size: clamp(1rem, 1.8vw, 1.25rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.hero-desc {
+  max-width: 560px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.75;
+  margin-bottom: 2rem;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── Buttons ── */
+.btn-primary {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bg-primary);
+  background: var(--accent);
+  padding: 0.85rem 1.9rem;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.btn-primary:hover {
+  background: #5fc9f8;
+  transform: translateY(-1px);
+  box-shadow: 0 0 30px var(--accent-glow-strong);
+}
+.btn-primary.is-soon,
+.btn-primary.is-soon:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--accent);
+  transform: none;
+  box-shadow: none;
+}
+.btn-primary .soon {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: rgba(6, 6, 11, 0.25);
+  color: var(--bg-primary);
+  padding: 0.12rem 0.4rem;
+  border-radius: 100px;
+}
+
+.btn-outline {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  padding: 0.85rem 1.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-bright);
+  cursor: pointer;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-outline:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.02);
+}
+
+/* ── DEMO (raw + live preview) ── */
+.demo { padding: 4rem 0; }
+.demo-head { text-align: center; max-width: 600px; margin: 0 auto 2.5rem; }
+.demo-head h2 {
+  font-family: var(--sans);
+  font-size: clamp(1.7rem, 3.2vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.8rem;
+}
+.demo-head p { color: var(--text-secondary); font-size: 0.95rem; }
+
+.demo-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 920px) { .demo-grid { grid-template-columns: 1fr 1fr; } }
+
+.demo-pane {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(56,189,248,0.04);
+}
+.demo-pane-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem 1.1rem;
+  background: rgba(255,255,255,0.015);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  min-height: 42px;
+}
+.demo-pane-head .tag { color: var(--accent-dim); }
+
+.raw-body { padding: 1.2rem 1.4rem; overflow-x: auto; flex: 1; }
+#xlrcRaw { font-family: var(--mono); font-size: 0.78rem; line-height: 1.7; }
+.raw-line { min-height: 1.7em; white-space: pre; color: var(--text-secondary); }
+.t-tag  { color: var(--text-muted); }
+.t-time { color: var(--accent); }
+.t-furi { color: var(--green); }
+.t-tr   { color: var(--violet); }
+
+.preview-body { padding: 0.4rem 1.4rem 1.4rem; flex: 1; }
+.lang-bar { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.lang-btn {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  border-radius: 100px;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.lang-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.lang-btn.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+
+.preview-lines { margin-top: 1.1rem; }
+.pl { padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+.pl:last-child { border-bottom: none; }
+.pl-orig { font-size: 1.15rem; color: var(--text-primary); line-height: 2.2; }
+.pl-tr { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.15rem; }
+.pl-empty { color: var(--text-muted); text-align: center; }
+ruby rt {
+  font-family: var(--sans);
+  font-size: 0.5em;
+  color: var(--accent);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.preview-fallback { color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0; }
+.demo-note {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-top: 1.6rem;
+}
+.demo-note code { color: var(--accent-dim); }
+
+/* ── FEATURES ── */
+.features { padding: 5rem 0; }
+.features-head { max-width: 620px; margin: 0 auto 2.5rem; text-align: center; }
+.features-head h2 {
+  font-family: var(--sans);
+  font-size: clamp(1.7rem, 3.2vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.9rem;
+}
+.features-head p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.75; }
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 680px)  { .feature-grid { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1000px) { .feature-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.feature-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.6rem 1.4rem;
+  background: var(--bg-card);
+  transition: all var(--transition);
+}
+.feature-card:hover {
+  border-color: var(--border-bright);
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+}
+.feature-card .fc-syntax {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  display: inline-block;
+  margin-bottom: 0.9rem;
+}
+.feature-card h3 { font-family: var(--sans); font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; }
+.feature-card p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; }
+
+/* ── CTA ── */
+.cta-section { padding: 5rem 0 6rem; }
+.cta-inner { text-align: center; max-width: 560px; margin: 0 auto; }
+.cta-inner h2 {
+  font-family: var(--sans);
+  font-size: clamp(1.7rem, 3.2vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.6rem;
+}
+.cta-inner p { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.95rem; }
+.cta-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+/* ── FOOTER ── */
+footer { border-top: 1px solid var(--border); padding: 3rem 0; position: relative; z-index: 1; }
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.footer-left { font-family: var(--sans); font-size: 0.78rem; color: var(--text-muted); }
+.footer-left a { color: var(--text-secondary); transition: color var(--transition); }
+.footer-left a:hover { color: var(--text-primary); }
+.footer-links { display: flex; gap: 1.5rem; list-style: none; }
+.footer-links a {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+.footer-links a:hover { color: var(--text-primary); }
+.footer-status {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  padding-top: 2rem;
+  margin-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Fade-in ── */
+.fade-in { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.fade-in.visible { opacity: 1; transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 920px) {
+  .section-divider { max-width: 90%; }
+}
+@media (max-width: 768px) {
+  nav { padding: 0.85rem 1.2rem; }
+  .nav-logo { font-size: 0.75rem; gap: 0.4rem; }
+  .nav-menu-btn { display: flex !important; }
+  .nav-links {
+    position: absolute; top: 100%; left: 0; right: 0;
+    display: flex !important; flex-direction: column; gap: 0;
+    background: rgba(6, 6, 11, 0.96);
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem 0;
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  .nav-links.mobile-open { max-height: 460px; }
+  .nav-links li { padding: 0.8rem 1.5rem; }
+  .nav-links.mobile-open li { border-bottom: 1px solid var(--border); }
+  .nav-links a { display: block; }
+  .nav-cta { padding: 0.4rem 0.9rem; font-size: 0.62rem !important; }
+  .container { padding: 0 1.5rem; }
+  .hero { padding: 7rem 1.5rem 3rem; }
+  .demo, .features { padding: 3.5rem 0; }
+  .cta-section { padding: 3.5rem 0 4.5rem; }
+  .footer-inner { flex-direction: column; gap: 1.5rem; text-align: center; }
+  .footer-links { gap: 1rem; flex-wrap: wrap; justify-content: center; }
+}
+@media (max-width: 480px) {
+  .hero h1 { font-size: 3rem; }
+  .btn-primary, .btn-outline { font-size: 0.72rem; padding: 0.75rem 1.4rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="topo-grid"></div>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">
+    <span class="nav-logo-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="5"    width="18" height="2.6" rx="1.3"></rect>
+        <rect x="3" y="10.7" width="13" height="2.6" rx="1.3" class="accent"></rect>
+        <rect x="3" y="16.4" width="16" height="2.6" rx="1.3"></rect>
+      </svg>
+    </span>
+    XLRC
+  </div>
+  <button class="nav-menu-btn" id="navMenuBtn" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="#demo">Demo</a></li>
+    <li><a href="#format">Format</a></li>
+    <li><a href="https://github.com/Boof2015/xlrc/blob/main/SPEC.md" target="_blank" rel="noopener">Spec</a></li>
+    <li><a href="/" class="nav-back-astra">← Astra</a></li>
+    <li><a href="https://github.com/Boof2015/xlrc" target="_blank" rel="noopener" class="nav-cta">GitHub</a></li>
+  </ul>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge">OPEN SOURCE <span class="ver">// MIT + CC0</span></div>
+  <h1>XLRC</h1>
+  <p class="hero-sub">Lyrics that speak more than one language.</p>
+  <p class="hero-desc">
+    XLRC extends the familiar LRC lyric format with inline translations, furigana, and word-level
+    timing. One human-readable file per track, backwards-compatible with plain LRC, and built on a
+    real, open spec.
+  </p>
+  <div class="hero-actions">
+    <span class="btn-primary is-soon" role="button" aria-disabled="true" title="Editor coming soon">
+      Open Editor <span class="soon">soon</span>
+    </span>
+    <a class="btn-outline" href="https://github.com/Boof2015/xlrc/blob/main/SPEC.md" target="_blank" rel="noopener">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5A1.5 1.5 0 0 1 3.5 1h6.586a1.5 1.5 0 0 1 1.06.44l2.415 2.413A1.5 1.5 0 0 1 14 4.914V13.5A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-11Zm3 4A.5.5 0 0 0 5 7h6a.5.5 0 0 0 0-1H5a.5.5 0 0 0 0 .5Zm0 3a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Z"/></svg>
+      View Spec
+    </a>
+  </div>
+</section>
+
+<!-- Live demo -->
+<section class="demo container fade-in" id="demo">
+  <div class="demo-head">
+    <div class="section-label"><span>//</span> SECTION_01 / SEE IT</div>
+    <h2>Write it plain. Read it rich.</h2>
+    <p>The same plain-text on the left, parsed and rendered on the right, with furigana above the kanji and translations underneath. Switch languages live.</p>
+  </div>
+  <div class="demo-grid">
+    <div class="demo-pane">
+      <div class="demo-pane-head">
+        <span>sample.xlrc</span>
+        <span class="tag">SOURCE</span>
+      </div>
+      <div class="raw-body"><div id="xlrcRaw"></div></div>
+    </div>
+    <div class="demo-pane">
+      <div class="demo-pane-head">
+        <span>rendered</span>
+        <div class="lang-bar" id="langBar"></div>
+      </div>
+      <div class="preview-body">
+        <div id="xlrcPreview"><div class="preview-fallback">Loading preview…</div></div>
+      </div>
+    </div>
+  </div>
+  <p class="demo-note">Rendered live in your browser by <code>@boof2015/xlrc</code></p>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Features -->
+<section class="features container fade-in" id="format">
+  <div class="features-head">
+    <div class="section-label"><span>//</span> SECTION_02 / FORMAT</div>
+    <h2>Everything LRC was missing.</h2>
+    <p>
+      XLRC adds the things lyrics always needed, like translations, readings, precise timing, and
+      voice attribution, without giving up the plain-text simplicity that made LRC last. The spec is CC0,
+      the tooling is MIT, and it's built in the open.
+    </p>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <span class="fc-syntax">[&gt;en]</span>
+      <h3>Inline translations</h3>
+      <p>Add any number of translation or transliteration lines under a lyric, keyed by BCP-47 language code.</p>
+    </div>
+    <div class="feature-card">
+      <span class="fc-syntax">漢字[かんじ]</span>
+      <h3>Furigana</h3>
+      <p>Annotate kanji with their readings. Renderers place the reading as ruby text above the base.</p>
+    </div>
+    <div class="feature-card">
+      <span class="fc-syntax">&lt;00:12.40&gt;</span>
+      <h3>Word-level timing</h3>
+      <p>Inline per-word timestamps for karaoke-style highlighting, mixable with plain lines.</p>
+    </div>
+    <div class="feature-card">
+      <span class="fc-syntax">[v:A]</span>
+      <h3>Multi-voice</h3>
+      <p>Attribute lines to a singer or part (duets, choruses, call-and-response) with simple labels.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- CTA -->
+<section class="cta-section container fade-in">
+  <div class="cta-inner">
+    <div class="section-label" style="text-align:center;"><span>//</span> GET STARTED</div>
+    <h2>Read the spec, grab the parser.</h2>
+    <p>XLRC is a draft (v0.1) and open to feedback. The spec, the reference parser, and everything else live on GitHub and npm.</p>
+    <div class="cta-actions">
+      <a class="btn-primary" href="https://github.com/Boof2015/xlrc/blob/main/SPEC.md" target="_blank" rel="noopener">View the Spec</a>
+      <a class="btn-outline" href="https://www.npmjs.com/package/@boof2015/xlrc" target="_blank" rel="noopener">npm: @boof2015/xlrc</a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">© 2026 XLRC // Made by <a href="https://github.com/Boof2015" target="_blank" rel="noopener">Boof2015</a></div>
+      <ul class="footer-links">
+        <li><a href="/">Astra</a></li>
+        <li><a href="/prism/">Prism</a></li>
+        <li><a href="https://github.com/Boof2015/xlrc" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://github.com/Boof2015/xlrc/blob/main/SPEC.md" target="_blank" rel="noopener">Spec</a></li>
+        <li><a href="https://www.npmjs.com/package/@boof2015/xlrc" target="_blank" rel="noopener">npm</a></li>
+      </ul>
+    </div>
+    <div class="footer-status">MIT + CC0 // OPEN FORMAT</div>
+  </div>
+</footer>
+
+<!-- Live preview, parses the sample with the real vendored parser -->
+<script type="module">
+import { parseXLRC } from "./assets/xlrc.js";
+
+const SAMPLE = [
+  "[ti:歌の例]",
+  "[ar:Example]",
+  "[lang:ja]",
+  "[langs:ja,en,ja-Latn]",
+  "",
+  "[00:12.40]私[わたし]が歌[うた]う",
+  "[>en]I sing",
+  "[>ja-Latn]watashi ga utau",
+  "[00:15.20]<00:15.20>うっせぇ<00:15.70>うっせぇ<00:16.10>うっせぇわ",
+  "[>en]Shut up, shut up, shut up already",
+  "[>ja-Latn]ussee ussee usseewa",
+  "[00:18.00]夜空[よぞら]を見[み]て",
+  "[>en]Looking at the night sky",
+  "[>ja-Latn]yozora wo mite"
+].join("\n");
+
+const KANA = /^[぀-ゟ゠-ヿㇰ-ㇿｦ-ﾟ]+$/u;
+const LABELS = { en: "English", "ja-Latn": "Romaji", ja: "日本語" };
+
+function span(cls, text) {
+  const s = document.createElement("span");
+  if (cls) s.className = cls;
+  s.textContent = text;
+  return s;
+}
+
+// ── Syntax-coloured raw view (built from the same SAMPLE, XSS-safe) ──
+function colorizeBody(frag, body) {
+  let i = 0;
+  while (i < body.length) {
+    if (body[i] === "<") {
+      const close = body.indexOf(">", i + 1);
+      if (close !== -1 && /^<\d+:\d{2}\.\d{2}>$/.test(body.slice(i, close + 1))) {
+        frag.appendChild(span("t-time", body.slice(i, close + 1)));
+        i = close + 1;
+        continue;
+      }
+    }
+    if (body[i] === "[") {
+      const close = body.indexOf("]", i + 1);
+      const prev = body[i - 1];
+      if (close !== -1 && prev && !/\s/.test(prev) && KANA.test(body.slice(i + 1, close))) {
+        frag.appendChild(span("t-furi", body.slice(i, close + 1)));
+        i = close + 1;
+        continue;
+      }
+    }
+    let j = i + 1;
+    while (j < body.length && body[j] !== "<" && body[j] !== "[") j++;
+    frag.appendChild(document.createTextNode(body.slice(i, j)));
+    i = j;
+  }
+}
+
+function colorizeLine(raw) {
+  const frag = document.createDocumentFragment();
+  if (raw.trim() === "") return frag;
+  if (/^\[[A-Za-z][\w-]*:[^\]]*\]$/.test(raw)) { frag.appendChild(span("t-tag", raw)); return frag; }
+  let m = raw.match(/^(\[>[^\]]+\])(.*)$/);
+  if (m) { frag.appendChild(span("t-tr", m[1])); colorizeBody(frag, m[2]); return frag; }
+  m = raw.match(/^(\[\d+:\d{2}\.\d{2}\])(.*)$/);
+  if (m) { frag.appendChild(span("t-time", m[1])); colorizeBody(frag, m[2]); return frag; }
+  frag.appendChild(document.createTextNode(raw));
+  return frag;
+}
+
+function renderRaw() {
+  const host = document.getElementById("xlrcRaw");
+  host.textContent = "";
+  for (const ln of SAMPLE.split("\n")) {
+    const row = document.createElement("div");
+    row.className = "raw-line";
+    row.appendChild(colorizeLine(ln));
+    host.appendChild(row);
+  }
+}
+
+// ── Furigana rendering: wrap [start,end) spans of `text` in <ruby> ──
+function renderFurigana(parent, text, furigana) {
+  const ranges = [...(furigana || [])].sort((a, b) => a.start - b.start);
+  let cursor = 0;
+  for (const f of ranges) {
+    if (f.start < cursor) continue; // skip overlaps defensively
+    if (f.start > cursor) parent.appendChild(document.createTextNode(text.slice(cursor, f.start)));
+    const ruby = document.createElement("ruby");
+    ruby.appendChild(document.createTextNode(f.base));
+    const rt = document.createElement("rt");
+    rt.textContent = f.reading;
+    ruby.appendChild(rt);
+    parent.appendChild(ruby);
+    cursor = f.end;
+  }
+  if (cursor < text.length) parent.appendChild(document.createTextNode(text.slice(cursor)));
+}
+
+const file = parseXLRC(SAMPLE);
+const langs = [...new Set(file.lines.flatMap((l) => l.translations.map((t) => t.lang)))];
+let activeLang = langs.includes("en") ? "en" : (langs[0] || null);
+
+function renderLangBar() {
+  const bar = document.getElementById("langBar");
+  bar.textContent = "";
+  for (const lang of [...langs, null]) {
+    const btn = document.createElement("button");
+    btn.className = "lang-btn" + (lang === activeLang ? " active" : "");
+    btn.textContent = lang === null ? "Off" : (LABELS[lang] || lang);
+    btn.addEventListener("click", () => { activeLang = lang; renderLangBar(); renderPreview(); });
+    bar.appendChild(btn);
+  }
+}
+
+function renderPreview() {
+  const host = document.getElementById("xlrcPreview");
+  host.textContent = "";
+  const lines = document.createElement("div");
+  lines.className = "preview-lines";
+  for (const line of file.lines) {
+    const wrap = document.createElement("div");
+    wrap.className = "pl";
+    if (line.isEmpty) {
+      wrap.className = "pl pl-empty";
+      wrap.textContent = "·";
+      lines.appendChild(wrap);
+      continue;
+    }
+    const orig = document.createElement("div");
+    orig.className = "pl-orig";
+    renderFurigana(orig, line.text, line.furigana);
+    wrap.appendChild(orig);
+    if (activeLang) {
+      const tr = line.translations.find((t) => t.lang === activeLang);
+      if (tr) {
+        const d = document.createElement("div");
+        d.className = "pl-tr";
+        d.textContent = tr.text;
+        wrap.appendChild(d);
+      }
+    }
+    lines.appendChild(wrap);
+  }
+  host.appendChild(lines);
+}
+
+renderRaw();
+renderLangBar();
+renderPreview();
+</script>
+
+<!-- Page chrome: mobile menu + scroll fade-in -->
+<script>
+(function () {
+  const obs = new IntersectionObserver((es) => {
+    es.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible"); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll(".fade-in").forEach((el) => obs.observe(el));
+})();
+
+(function () {
+  const btn = document.getElementById("navMenuBtn");
+  const links = document.getElementById("navLinks");
+  if (!btn || !links) return;
+  btn.addEventListener("click", () => {
+    btn.classList.toggle("active");
+    links.classList.toggle("mobile-open");
+  });
+  links.querySelectorAll("a").forEach((a) => a.addEventListener("click", () => {
+    btn.classList.remove("active");
+    links.classList.remove("mobile-open");
+  }));
+})();
+</script>
+</body>
+</html>
