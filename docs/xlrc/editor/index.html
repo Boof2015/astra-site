@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XLRC Editor</title>
+<meta name="description" content="A local, in-browser editor and live renderer for the XLRC lyric format. Edit, load audio, and sync in real time. Nothing leaves your browser.">
+<meta name="theme-color" content="#06060b">
+<meta property="og:title" content="XLRC Editor">
+<meta property="og:description" content="Edit XLRC lyrics with a live renderer and local audio sync, right in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://astramusic.dev/xlrc/editor/">
+
+<!-- Apply saved/system theme before first paint to avoid a flash -->
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem("xlrc-theme");
+    if (t !== "light" && t !== "dark") {
+      t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+    document.documentElement.dataset.theme = t;
+  } catch (e) {}
+})();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #171717;
+  --bg-card: #1c1c1c;
+  --bg-card-hover: #262626;
+  --border: #2a2a2a;
+  --border-bright: #3d3d3d;
+  --text-primary: #f0f0f0;
+  --text-secondary: #9a9a9a;
+  --text-muted: #6a6a6a;
+  --accent: #38bdf8;
+  --accent-dim: #2196cc;
+  --accent-glow: rgba(56, 189, 248, 0.14);
+  --accent-glow-strong: rgba(56, 189, 248, 0.28);
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --violet: #c084fc;
+  --primary-bg: #f0f0f0;
+  --primary-fg: #0f0f0f;
+  --code-fg: #d6d6d6;
+  --marker: rgba(240, 240, 240, 0.5);
+  --wave-muted: #404040;
+  --err: #f87171;
+  --mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --radius: 8px;
+  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --ed-line: 21px;
+  --ed-font: 13px;
+}
+
+:root[data-theme="light"] {
+  --bg-primary: #f0f0f0;
+  --bg-secondary: #e7e7e7;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f4f4f4;
+  --border: #dadada;
+  --border-bright: #c2c2c2;
+  --text-primary: #0f0f0f;
+  --text-secondary: #595959;
+  --text-muted: #8a8a8a;
+  --accent: #0284c7;
+  --accent-dim: #0369a1;
+  --accent-glow: rgba(2, 132, 199, 0.12);
+  --accent-glow-strong: rgba(2, 132, 199, 0.22);
+  --green: #15a34a;
+  --amber: #b45309;
+  --violet: #7c3aed;
+  --primary-bg: #0f0f0f;
+  --primary-fg: #f0f0f0;
+  --code-fg: #2a2a2a;
+  --marker: rgba(15, 15, 15, 0.42);
+  --wave-muted: #c4c4c4;
+  --err: #dc2626;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+body {
+  font-family: var(--sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+::selection { background: var(--accent); color: var(--bg-primary); }
+
+/* Scrollbars — themed, not the default white */
+* { scrollbar-width: thin; scrollbar-color: var(--border-bright) transparent; }
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-bright);
+  border-radius: 7px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+/* ── TOOLBAR ── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.55rem 1rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.tb-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-right: 0.4rem;
+}
+.tb-logo {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-primary);
+}
+.tb-back {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+.tb-back:hover { color: var(--accent); }
+.tb-sep { width: 1px; height: 22px; background: var(--border-bright); }
+.tb-spacer { flex: 1; }
+
+.tb-btn {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 0.42rem 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: all var(--transition);
+}
+.tb-btn:hover { color: var(--text-primary); border-color: var(--text-muted); background: var(--bg-card-hover); }
+.tb-btn svg { width: 14px; height: 14px; opacity: 0.8; }
+
+.tb-btn.accent {
+  color: var(--primary-fg);
+  background: var(--primary-bg);
+  border-color: var(--primary-bg);
+  font-weight: 600;
+}
+.tb-btn.accent:hover { color: var(--primary-fg); background: var(--primary-bg); border-color: var(--primary-bg); opacity: 0.88; }
+
+.tb-select {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.6rem;
+}
+.tb-label {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.theme-toggle {
+  width: 34px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  transition: all var(--transition);
+}
+.theme-toggle:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.theme-toggle svg { width: 15px; height: 15px; }
+.theme-toggle .i-sun { display: none; }
+:root[data-theme="light"] .theme-toggle .i-sun { display: block; }
+:root[data-theme="light"] .theme-toggle .i-moon { display: none; }
+
+/* ── MAIN SPLIT ── */
+.main {
+  display: grid;
+  grid-template-columns: minmax(260px, var(--ed-col, 1fr)) 6px minmax(280px, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+.divider {
+  background: var(--border);
+  cursor: col-resize;
+  position: relative;
+  transition: background var(--transition);
+}
+.divider:hover, .divider.dragging { background: var(--accent); }
+
+/* ── EDITOR PANE ── */
+.editor {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+.ed-gutter {
+  overflow: hidden;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: var(--ed-font);
+  line-height: var(--ed-line);
+  color: var(--text-muted);
+  user-select: none;
+  padding: 12px 0;
+}
+.ed-gutter .ln {
+  height: var(--ed-line);
+  padding: 0 10px 0 6px;
+  text-align: right;
+  position: relative;
+  white-space: nowrap;
+}
+.ed-gutter .ln.warn { color: #f87171; }
+.ed-gutter .ln.warn::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 3px; bottom: 3px;
+  width: 2px;
+  background: #f87171;
+}
+
+.ed-input { position: relative; min-height: 0; overflow: hidden; }
+.ed-highlight, .ed-area {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  font-family: var(--mono);
+  font-size: var(--ed-font);
+  line-height: var(--ed-line);
+  white-space: pre;
+  tab-size: 2;
+  overflow: auto;
+  letter-spacing: 0;
+}
+/* Highlight layer sits ON TOP (transparent bg) so colored text renders over
+   the textarea's selection rectangle — selection reads behind the glyphs. */
+.ed-highlight {
+  z-index: 1;
+  color: var(--code-fg);
+  pointer-events: none;
+}
+.ed-area {
+  z-index: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--accent);
+  resize: none;
+  outline: none;
+}
+.ed-area::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.ed-curline {
+  position: absolute;
+  left: 0; right: 0;
+  height: var(--ed-line);
+  background: var(--accent-glow);
+  border-left: 2px solid var(--accent);
+  pointer-events: none;
+  z-index: 0;
+  display: none;
+}
+.ed-gutter .ln.cur { color: var(--accent); }
+/* Token colors (shared with the landing colorizer) */
+.t-tag  { color: var(--text-muted); }
+.t-time { color: var(--accent); }
+.t-furi { color: var(--green); }
+.t-tr   { color: var(--violet); }
+.hl-line { text-decoration: none; }
+.hl-line.err {
+  text-decoration: underline solid var(--err);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}
+
+/* ── RENDERER PANE ── */
+.renderer {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  padding: 14vh 2rem 18vh;
+}
+.render-inner { max-width: 640px; margin: 0 auto; }
+.rline {
+  padding: 0.5rem 0 0.5rem 1.1rem;
+  border-left: 2px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  opacity: 0.5;
+  transition: opacity var(--transition), border-color var(--transition);
+}
+.rline.near { opacity: 0.8; }
+.rline.active { opacity: 1; border-left-color: var(--accent); }
+.rline-main { display: flex; align-items: baseline; gap: 0.6rem; }
+.voice-pill {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 0.12rem 0.5rem;
+  border-radius: 100px;
+  border: 1px solid currentColor;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.rline-text {
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 2;
+  color: var(--text-primary);
+}
+.rline.active .rline-text { color: var(--text-primary); }
+.rline-text.empty { color: var(--text-muted); font-size: 1.1rem; }
+.rline-tr {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+ruby rt {
+  font-family: var(--sans);
+  font-size: 0.42em;
+  color: var(--accent);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.render-empty {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  text-align: center;
+  padding-top: 6vh;
+}
+
+/* ── BOTTOM BAR ── */
+.bottom {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 0.75rem 1.3rem;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+}
+.transport { display: flex; align-items: center; gap: 0.9rem; min-width: 0; }
+.transport.disabled { opacity: 0.45; pointer-events: none; }
+.play-btn {
+  flex: none;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.play-btn:hover { border-color: var(--accent); color: var(--accent); }
+.play-btn svg { width: 18px; height: 18px; }
+.play-btn .i-pause { display: none; }
+.play-btn.playing .i-play { display: none; }
+.play-btn.playing .i-pause { display: block; }
+
+.scrub-wrap { flex: 1; min-width: 80px; display: flex; align-items: center; }
+.scrub {
+  position: relative;
+  width: 100%;
+  height: 52px;
+  cursor: pointer;
+  touch-action: none;
+}
+.wave {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  width: 100%;
+  height: 38px;
+  display: block;
+}
+/* Markers live in their own lane above the waveform so they never fight the peaks */
+.mk-rail {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 14px;
+  pointer-events: none;
+}
+.mk {
+  position: absolute;
+  top: 4px;
+  width: 2px;
+  height: 9px;
+  border-radius: 1px;
+  background: var(--marker);
+  transform: translateX(-1px);
+  transition: background var(--transition), height var(--transition);
+}
+.mk.passed { background: var(--accent-dim); }
+.mk.active {
+  background: var(--accent);
+  top: 0;
+  height: 14px;
+  box-shadow: 0 0 6px var(--accent-glow-strong);
+}
+.mk.active::before {
+  content: '';
+  position: absolute;
+  top: -5px; left: 50%;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateX(-50%);
+}
+.playhead {
+  position: absolute;
+  top: 3px; bottom: 0;
+  width: 2px;
+  background: var(--text-primary);
+  transform: translateX(-1px);
+  pointer-events: none;
+}
+.playhead::after {
+  content: '';
+  position: absolute;
+  top: -3px; left: 50%;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  transform: translateX(-50%);
+}
+.scrub-tip {
+  position: absolute;
+  bottom: calc(100% + 9px);
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+  display: none;
+  z-index: 50;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.time {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.status .ok { color: var(--green); }
+.status .warn { color: var(--amber); }
+.status .dot { opacity: 0.4; }
+.status .fname { color: var(--text-secondary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Drag & drop overlay ── */
+.dropzone {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-primary) 76%, transparent);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+}
+.dropzone.show { display: flex; }
+.dropzone-inner {
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+  padding: 2.4rem 3.4rem;
+  text-align: center;
+  background: var(--bg-card);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+.dropzone-inner svg { width: 30px; height: 30px; color: var(--accent); margin-bottom: 0.9rem; }
+.dz-title { font-size: 1.05rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.35rem; }
+.dz-sub {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+/* ── Responsive: stack panes ── */
+@media (max-width: 860px) {
+  .main {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  .divider { display: none; }
+  .editor { border-bottom: 1px solid var(--border); }
+  .renderer { padding: 6vh 1.2rem 8vh; }
+  .rline-text { font-size: 1.25rem; }
+  .toolbar { flex-wrap: wrap; gap: 0.5rem; }
+  .tb-back, .tb-label { display: none; }
+  .status .langs, .status .lines { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rline { transition: none; }
+  .renderer { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="tb-brand">
+      <span class="tb-logo">XLRC</span>
+      <a class="tb-back" href="../">← xlrc</a>
+    </div>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btnImport">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11 4 7h2.5V2h3v5H12L8 11Z"/><path d="M3 13h10v1H3z"/></svg>
+      Import
+    </button>
+    <button class="tb-btn" id="btnAudio">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 3v7.3A2.5 2.5 0 1 0 7 12V6h4V3H6Z"/></svg>
+      Load Audio
+    </button>
+    <span class="tb-spacer"></span>
+    <span class="tb-label">Lang</span>
+    <select class="tb-select" id="langSelect"><option value="">None</option></select>
+    <button class="theme-toggle" id="btnTheme" aria-label="Toggle theme" title="Toggle light / dark">
+      <svg class="i-moon" viewBox="0 0 16 16" fill="currentColor"><path d="M6 1a7 7 0 1 0 9 9 5.5 5.5 0 0 1-9-9Z"/></svg>
+      <svg class="i-sun" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3.2"/><path d="M8 0v2.2M8 13.8V16M0 8h2.2M13.8 8H16M2.3 2.3l1.6 1.6M12.1 12.1l1.6 1.6M13.7 2.3l-1.6 1.6M3.9 12.1l-1.6 1.6" stroke="currentColor" stroke-width="1.3"/></svg>
+    </button>
+    <button class="tb-btn accent" id="btnExport">Export .xlrc</button>
+    <input type="file" id="fileLyrics" accept=".xlrc,.lrc,.txt,text/plain" hidden>
+    <input type="file" id="fileAudio" accept="audio/*,.mp3,.flac,.wav,.m4a,.ogg" hidden>
+  </div>
+
+  <!-- Main split -->
+  <div class="main" id="main">
+    <div class="editor">
+      <div class="ed-gutter" id="gutter"></div>
+      <div class="ed-input">
+        <div class="ed-curline" id="curline"></div>
+        <pre class="ed-highlight" id="highlight" aria-hidden="true"></pre>
+        <textarea class="ed-area" id="area" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+      </div>
+    </div>
+    <div class="divider" id="divider" role="separator" aria-orientation="vertical"></div>
+    <div class="renderer" id="renderer"><div class="render-inner" id="renderInner"></div></div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottom">
+    <div class="transport disabled" id="transport">
+      <button class="play-btn" id="playBtn" aria-label="Play / pause">
+        <svg class="i-play" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5-9-5.5Z"/></svg>
+        <svg class="i-pause" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>
+      </button>
+      <div class="scrub-wrap">
+        <div class="scrub" id="scrub">
+          <canvas class="wave" id="wave"></canvas>
+          <div class="mk-rail" id="markers"></div>
+          <div class="playhead" id="playhead"></div>
+          <div class="scrub-tip" id="scrubTip"></div>
+        </div>
+      </div>
+      <div class="time" id="time">0:00 / 0:00</div>
+    </div>
+    <div class="status" id="status">
+      <span class="ok" id="stStatus">✓ Valid</span>
+      <span class="dot">·</span>
+      <span class="lines" id="stLines">0 lines</span>
+      <span class="dot">·</span>
+      <span class="langs" id="stLangs">—</span>
+      <span class="fname" id="stFile"></span>
+    </div>
+  </div>
+</div>
+
+<audio id="audio" preload="metadata"></audio>
+
+<!-- Drag & drop overlay -->
+<div class="dropzone" id="dropzone">
+  <div class="dropzone-inner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+    <div class="dz-title">Drop to load</div>
+    <div class="dz-sub">.xlrc / .lrc / .txt &nbsp;·&nbsp; or an audio file</div>
+  </div>
+</div>
+
+<script type="module">
+import { parseXLRC } from "../assets/xlrc.js";
+
+const KANA = /^[぀-ゟ゠-ヿㇰ-ㇿｦ-ﾟ]+$/u;
+const LANG_LABELS = { en: "English", "ja-Latn": "Romaji", ja: "日本語", ko: "한국어", "zh-Hans": "简体", "zh-Hant": "繁體", "zh-Latn": "Pinyin", es: "Español", fr: "Français" };
+
+const SEED = [
+  "[ti:Sample Song]",
+  "[ar:Artist]",
+  "[lang:ja]",
+  "[langs:ja,en,ja-Latn]",
+  "",
+  "[00:00.00]",
+  "[00:12.40]私[わたし]が歌[うた]う",
+  "[>en]I sing",
+  "[>ja-Latn]watashi ga utau",
+  "[00:15.20][v:A]君[きみ]の声[こえ]",
+  "[>en]Your voice",
+  "[00:18.00]夜空[よぞら]を見[み]て",
+  "[>en]Looking at the night sky",
+  "[>ja-Latn]yozora wo mite"
+].join("\n");
+
+// ── shared helpers (mirrors the landing page) ──
+function span(cls, text) {
+  const s = document.createElement("span");
+  if (cls) s.className = cls;
+  s.textContent = text;
+  return s;
+}
+function colorizeBody(frag, body) {
+  let i = 0;
+  while (i < body.length) {
+    if (body[i] === "<") {
+      const close = body.indexOf(">", i + 1);
+      if (close !== -1 && /^<\d+:\d{2}\.\d{2}>$/.test(body.slice(i, close + 1))) {
+        frag.appendChild(span("t-time", body.slice(i, close + 1)));
+        i = close + 1; continue;
+      }
+    }
+    if (body[i] === "[") {
+      const close = body.indexOf("]", i + 1);
+      const prev = body[i - 1];
+      if (close !== -1 && prev && !/\s/.test(prev) && KANA.test(body.slice(i + 1, close))) {
+        frag.appendChild(span("t-furi", body.slice(i, close + 1)));
+        i = close + 1; continue;
+      }
+    }
+    let j = i + 1;
+    while (j < body.length && body[j] !== "<" && body[j] !== "[") j++;
+    frag.appendChild(document.createTextNode(body.slice(i, j)));
+    i = j;
+  }
+}
+function colorizeLine(raw) {
+  const frag = document.createDocumentFragment();
+  if (raw.trim() === "") return frag;
+  if (/^\[[A-Za-z][\w-]*:[^\]]*\]$/.test(raw)) { frag.appendChild(span("t-tag", raw)); return frag; }
+  let m = raw.match(/^(\[>[^\]]+\])(.*)$/);
+  if (m) { frag.appendChild(span("t-tr", m[1])); colorizeBody(frag, m[2]); return frag; }
+  m = raw.match(/^(\[\d+:\d{2}\.\d{2}\])(.*)$/);
+  if (m) { frag.appendChild(span("t-time", m[1])); colorizeBody(frag, m[2]); return frag; }
+  frag.appendChild(document.createTextNode(raw));
+  return frag;
+}
+function renderFurigana(parent, text, furigana) {
+  const ranges = [...(furigana || [])].sort((a, b) => a.start - b.start);
+  let cursor = 0;
+  for (const f of ranges) {
+    if (f.start < cursor) continue;
+    if (f.start > cursor) parent.appendChild(document.createTextNode(text.slice(cursor, f.start)));
+    const ruby = document.createElement("ruby");
+    ruby.appendChild(document.createTextNode(f.base));
+    const rt = document.createElement("rt");
+    rt.textContent = f.reading;
+    ruby.appendChild(rt);
+    parent.appendChild(ruby);
+    cursor = f.end;
+  }
+  if (cursor < text.length) parent.appendChild(document.createTextNode(text.slice(cursor)));
+}
+
+function fmt(sec) {
+  if (!isFinite(sec) || sec < 0) sec = 0;
+  sec = Math.floor(sec);
+  return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+}
+function voiceColor(label) {
+  let h = 0;
+  for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return `hsl(${h % 360} 70% 62%)`;
+}
+
+// ── elements ──
+const area = document.getElementById("area");
+const highlight = document.getElementById("highlight");
+const gutter = document.getElementById("gutter");
+const curline = document.getElementById("curline");
+const renderInner = document.getElementById("renderInner");
+const renderer = document.getElementById("renderer");
+const langSelect = document.getElementById("langSelect");
+const audio = document.getElementById("audio");
+const transport = document.getElementById("transport");
+const playBtn = document.getElementById("playBtn");
+const scrub = document.getElementById("scrub");
+const waveCanvas = document.getElementById("wave");
+const waveCtx = waveCanvas.getContext("2d");
+const markersEl = document.getElementById("markers");
+const playhead = document.getElementById("playhead");
+const scrubTip = document.getElementById("scrubTip");
+const timeEl = document.getElementById("time");
+const stStatus = document.getElementById("stStatus");
+const stLines = document.getElementById("stLines");
+const stLangs = document.getElementById("stLangs");
+const stFile = document.getElementById("stFile");
+
+// ── state ──
+let parsed = { meta: {}, lines: [], warnings: [] };
+let activeLang = "";
+let lineEls = [];
+let activeIdx = -1;
+let parseTimer = 0;
+let curGutterEl = null;
+let activeSrcLine = 0;
+
+// ── editor: highlight + gutter + scroll sync ──
+function renderHighlight() {
+  const value = area.value;
+  const parts = value.split("\n");
+  const warnLines = new Set(parsed.warnings.map((w) => w.line));
+  highlight.textContent = "";
+  for (let i = 0; i < parts.length; i++) {
+    const lineSpan = document.createElement("span");
+    lineSpan.className = warnLines.has(i + 1) ? "hl-line err" : "hl-line";
+    lineSpan.appendChild(colorizeLine(parts[i]));
+    highlight.appendChild(lineSpan);
+    if (i < parts.length - 1) highlight.appendChild(document.createTextNode("\n"));
+  }
+  renderGutter(parts.length);
+  syncScroll();
+}
+function updateErrLines() {
+  const warnLines = new Set(parsed.warnings.map((w) => w.line));
+  const spans = highlight.children;
+  for (let i = 0; i < spans.length; i++) spans[i].classList.toggle("err", warnLines.has(i + 1));
+}
+function renderGutter(count) {
+  const warnLines = new Set(parsed.warnings.map((w) => w.line));
+  const frag = document.createDocumentFragment();
+  for (let n = 1; n <= count; n++) {
+    const ln = document.createElement("div");
+    ln.className = "ln" + (warnLines.has(n) ? " warn" : "");
+    ln.textContent = n;
+    frag.appendChild(ln);
+  }
+  gutter.textContent = "";
+  gutter.appendChild(frag);
+}
+function syncScroll() {
+  highlight.scrollTop = area.scrollTop;
+  highlight.scrollLeft = area.scrollLeft;
+  gutter.scrollTop = area.scrollTop;
+  updateCurline();
+}
+
+// ── parse (debounced) ──
+function doParse() {
+  parsed = parseXLRC(area.value);
+  buildLangOptions();
+  renderLyrics();
+  renderStatus();
+  renderGutter(area.value.split("\n").length); // refresh warning marks
+  updateErrLines();
+  renderMarkers();
+  syncActive(true);
+}
+function scheduleParse() {
+  clearTimeout(parseTimer);
+  parseTimer = setTimeout(doParse, 300);
+}
+
+// ── language selector ──
+function detectedLangs() {
+  const set = new Set();
+  for (const l of parsed.lines) for (const t of l.translations) set.add(t.lang);
+  for (const l of parsed.meta.langs || []) set.add(l);
+  return [...set];
+}
+function buildLangOptions() {
+  const langs = detectedLangs();
+  const prev = activeLang;
+  langSelect.textContent = "";
+  const none = document.createElement("option");
+  none.value = ""; none.textContent = "None";
+  langSelect.appendChild(none);
+  for (const lang of langs) {
+    const o = document.createElement("option");
+    o.value = lang;
+    o.textContent = LANG_LABELS[lang] || lang;
+    langSelect.appendChild(o);
+  }
+  activeLang = langs.includes(prev) ? prev : "";
+  langSelect.value = activeLang;
+}
+
+// ── renderer ──
+function renderLyrics() {
+  renderInner.textContent = "";
+  lineEls = [];
+  if (!parsed.lines.length) {
+    const e = document.createElement("div");
+    e.className = "render-empty";
+    e.textContent = "No timed lines yet. Add a [mm:ss.xx] line on the left.";
+    renderInner.appendChild(e);
+    return;
+  }
+  parsed.lines.forEach((line, idx) => {
+    const el = document.createElement("div");
+    el.className = "rline";
+    const main = document.createElement("div");
+    main.className = "rline-main";
+    if (line.voice) {
+      const pill = document.createElement("span");
+      pill.className = "voice-pill";
+      pill.textContent = line.voice;
+      pill.style.color = voiceColor(line.voice);
+      main.appendChild(pill);
+    }
+    const text = document.createElement("div");
+    text.className = "rline-text";
+    if (line.isEmpty) {
+      text.classList.add("empty");
+      text.textContent = "·";
+    } else {
+      renderFurigana(text, line.text, line.furigana);
+    }
+    main.appendChild(text);
+    el.appendChild(main);
+    if (activeLang) {
+      const tr = line.translations.find((t) => t.lang === activeLang);
+      if (tr) {
+        const trEl = document.createElement("div");
+        trEl.className = "rline-tr";
+        trEl.textContent = tr.text;
+        el.appendChild(trEl);
+      }
+    }
+    renderInner.appendChild(el);
+    lineEls.push(el);
+  });
+}
+
+// ── status ──
+function renderStatus() {
+  const w = parsed.warnings.length;
+  if (w === 0) { stStatus.className = "ok"; stStatus.textContent = "✓ Valid"; }
+  else { stStatus.className = "warn"; stStatus.textContent = "⚠ " + w + (w === 1 ? " warning" : " warnings"); }
+  stLines.textContent = parsed.lines.length + (parsed.lines.length === 1 ? " line" : " lines");
+  const langs = detectedLangs();
+  stLangs.textContent = langs.length ? langs.join(", ") : "—";
+}
+
+// ── sync ──
+function resolveActive(ms) {
+  const lines = parsed.lines;
+  let lo = 0, hi = lines.length - 1, res = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (lines[mid].timestamp <= ms) { res = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return res;
+}
+function syncActive(force) {
+  if (!parsed.lines.length) { activeIdx = -1; setEditorActive(-1); return; }
+  const ms = audio.currentTime * 1000 - (parsed.meta.offset || 0);
+  const idx = resolveActive(ms);
+  if (idx === activeIdx && !force) return;
+  activeIdx = idx;
+  lineEls.forEach((el, i) => {
+    el.classList.toggle("active", i === idx);
+    el.classList.toggle("near", i === idx - 1 || i === idx + 1);
+  });
+  if (idx >= 0 && lineEls[idx]) {
+    lineEls[idx].scrollIntoView({ block: "center", behavior: prefersReduced ? "auto" : "smooth" });
+  }
+  updateTickActive(idx);
+  setEditorActive(idx);
+}
+
+// Mirror the active line into the editor: gutter marker + current-line band.
+// The editor does NOT auto-scroll; the band is simply clipped when off-screen.
+function setEditorActive(idx) {
+  const srcLine = idx >= 0 && parsed.lines[idx] ? parsed.lines[idx].line : 0;
+  if (curGutterEl) curGutterEl.classList.remove("cur");
+  curGutterEl = srcLine ? gutter.children[srcLine - 1] : null;
+  if (curGutterEl) curGutterEl.classList.add("cur");
+  activeSrcLine = srcLine;
+  updateCurline();
+}
+function updateCurline() {
+  if (!activeSrcLine) { curline.style.display = "none"; return; }
+  const lh = parseFloat(getComputedStyle(highlight).lineHeight) || 21;
+  curline.style.top = (12 + (activeSrcLine - 1) * lh - area.scrollTop) + "px";
+  curline.style.display = "block";
+}
+
+// ── transport / scrubber ──
+let rafId = 0;
+const prefersReduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function loop() {
+  updateScrub();
+  syncActive(false);
+  rafId = requestAnimationFrame(loop);
+}
+function startLoop() { if (!rafId) rafId = requestAnimationFrame(loop); }
+function stopLoop() { cancelAnimationFrame(rafId); rafId = 0; }
+
+// ── waveform + loudness normalization ──
+let peaks = null;
+let audioCtx = null, mediaSrc = null, gainNode = null, normGain = 1;
+// Route the <audio> element through a gain node once, so we can tame loud masters.
+function ensureGraph() {
+  if (audioCtx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  audioCtx = new AC();
+  mediaSrc = audioCtx.createMediaElementSource(audio);
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = normGain;
+  mediaSrc.connect(gainNode).connect(audioCtx.destination);
+}
+function applyGain() { if (gainNode) gainNode.gain.value = normGain; }
+const waveColors = { accent: "#38bdf8", muted: "#404040" };
+function refreshWaveColors() {
+  const cs = getComputedStyle(document.documentElement);
+  waveColors.accent = cs.getPropertyValue("--accent").trim() || waveColors.accent;
+  waveColors.muted = cs.getPropertyValue("--wave-muted").trim() || waveColors.muted;
+}
+function resizeWave() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const r = waveCanvas.getBoundingClientRect();
+  waveCanvas.width = Math.max(1, Math.round(r.width * dpr));
+  waveCanvas.height = Math.max(1, Math.round(r.height * dpr));
+}
+function drawWave() {
+  const w = waveCanvas.width, h = waveCanvas.height;
+  waveCtx.clearRect(0, 0, w, h);
+  const d = audio.duration || 0;
+  const playX = d ? (audio.currentTime / d) * w : 0;
+  if (!peaks) {
+    waveCtx.fillStyle = waveColors.muted;
+    waveCtx.fillRect(0, h / 2 - 1, w, 2);
+    return;
+  }
+  const n = peaks.length;
+  const step = w / n;
+  const bw = Math.max(1, step * 0.6);
+  for (let i = 0; i < n; i++) {
+    const cx = i * step + step / 2;
+    const barH = Math.max(2, peaks[i] * h * 0.92);
+    waveCtx.fillStyle = cx <= playX ? waveColors.accent : waveColors.muted;
+    waveCtx.fillRect(cx - bw / 2, (h - barH) / 2, bw, barH);
+  }
+}
+async function buildWaveform(file) {
+  peaks = null;
+  normGain = 1;
+  applyGain();
+  resizeWave();
+  drawWave();
+  let tmpCtx = null;
+  try {
+    ensureGraph();
+    const data = await file.arrayBuffer();
+    const ctx = audioCtx || (tmpCtx = new (window.AudioContext || window.webkitAudioContext)());
+    const audioBuf = await ctx.decodeAudioData(data);
+    const ch = audioBuf.getChannelData(0);
+    const N = 360;
+    const block = Math.max(1, Math.floor(ch.length / N));
+    const p = new Float32Array(N);
+    let max = 0, gPeak = 0, gSum = 0, gCount = 0;
+    for (let i = 0; i < N; i++) {
+      let sum = 0;
+      const start = i * block;
+      for (let j = 0; j < block; j++) {
+        const v = ch[start + j] || 0;
+        const a = v < 0 ? -v : v;
+        if (a > gPeak) gPeak = a;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / block);
+      p[i] = rms;
+      if (rms > max) max = rms;
+      gSum += sum;
+      gCount += block;
+    }
+    if (max > 0) for (let i = 0; i < N; i++) p[i] /= max;
+    peaks = p;
+    // Loudness normalization: aim for a target RMS, capped so peaks stay below a
+    // ceiling (no clipping) and within sane bounds (don't over-boost quiet tracks).
+    const measuredRMS = gCount ? Math.sqrt(gSum / gCount) : 0;
+    if (measuredRMS > 0) {
+      const TARGET_RMS = 0.10;
+      const CEILING = 0.97;
+      let g = TARGET_RMS / measuredRMS;
+      if (gPeak > 0) g = Math.min(g, CEILING / gPeak);
+      normGain = Math.max(0.1, Math.min(g, 4));
+    }
+    applyGain();
+  } catch (e) {
+    peaks = null;
+  } finally {
+    if (tmpCtx) tmpCtx.close();
+  }
+  resizeWave();
+  drawWave();
+}
+
+// ── scrubber / markers ──
+function updateScrub() {
+  const d = audio.duration || 0;
+  const cur = audio.currentTime || 0;
+  playhead.style.left = (d ? (cur / d) * 100 : 0) + "%";
+  timeEl.textContent = fmt(cur) + " / " + fmt(d);
+  drawWave();
+}
+function renderMarkers() {
+  markersEl.textContent = "";
+  const d = audio.duration;
+  if (!d || !parsed.lines.length) return;
+  const dMs = d * 1000;
+  for (let i = 0; i < parsed.lines.length; i++) {
+    const t = parsed.lines[i].timestamp;
+    if (t > dMs) continue;
+    const mk = document.createElement("div");
+    mk.className = "mk";
+    mk.style.left = (t / dMs) * 100 + "%";
+    mk.dataset.idx = i;
+    markersEl.appendChild(mk);
+  }
+  updateTickActive(activeIdx);
+}
+function updateTickActive(idx) {
+  for (const mk of markersEl.children) {
+    const i = Number(mk.dataset.idx);
+    mk.classList.toggle("active", i === idx);
+    mk.classList.toggle("passed", i < idx);
+  }
+}
+function seekToClientX(clientX) {
+  const r = scrub.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+  if (audio.duration) audio.currentTime = ratio * audio.duration;
+  updateScrub();
+  syncActive(true);
+}
+
+playBtn.addEventListener("click", () => {
+  if (!audio.src) return;
+  if (audio.paused) audio.play(); else audio.pause();
+});
+audio.addEventListener("play", () => {
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  playBtn.classList.add("playing");
+  startLoop();
+});
+audio.addEventListener("pause", () => { playBtn.classList.remove("playing"); stopLoop(); updateScrub(); });
+audio.addEventListener("ended", () => { playBtn.classList.remove("playing"); stopLoop(); });
+audio.addEventListener("loadedmetadata", () => { resizeWave(); renderMarkers(); updateScrub(); });
+audio.addEventListener("seeked", () => { updateScrub(); syncActive(true); });
+
+function showTip(clientX) {
+  const d = audio.duration || 0;
+  if (!d || !parsed.lines.length) { scrubTip.style.display = "none"; return; }
+  const r = scrub.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+  const idx = resolveActive(ratio * d * 1000);
+  const line = idx >= 0 ? parsed.lines[idx] : parsed.lines[0];
+  const label = !line || line.isEmpty ? "instrumental" : line.text;
+  scrubTip.textContent = fmt((line ? line.timestamp : 0) / 1000) + "  ·  " + (label.length > 40 ? label.slice(0, 39) + "…" : label);
+  scrubTip.style.left = ratio * 100 + "%";
+  scrubTip.style.display = "block";
+}
+let scrubbing = false;
+scrub.addEventListener("pointerdown", (e) => {
+  if (!audio.src) return;
+  scrubbing = true;
+  scrub.setPointerCapture(e.pointerId);
+  seekToClientX(e.clientX);
+});
+scrub.addEventListener("pointermove", (e) => {
+  if (scrubbing) seekToClientX(e.clientX);
+  else showTip(e.clientX);
+});
+scrub.addEventListener("pointerup", (e) => { scrubbing = false; try { scrub.releasePointerCapture(e.pointerId); } catch (_) {} });
+scrub.addEventListener("pointerleave", () => { scrubTip.style.display = "none"; });
+
+// ── toolbar actions + file loading (shared by buttons and drag-drop) ──
+const fileLyrics = document.getElementById("fileLyrics");
+const fileAudio = document.getElementById("fileAudio");
+let audioURL = null;
+
+async function loadLyricsFile(file) {
+  area.value = await file.text();
+  stFile.textContent = file.name;
+  renderHighlight();
+  doParse();
+}
+function loadAudioFile(file) {
+  if (audioURL) URL.revokeObjectURL(audioURL);
+  audioURL = URL.createObjectURL(file);
+  audio.src = audioURL;
+  transport.classList.remove("disabled");
+  buildWaveform(file);
+}
+function isAudioFile(file) {
+  return file.type.startsWith("audio/") || /\.(mp3|flac|wav|m4a|ogg|aac|opus)$/i.test(file.name);
+}
+function handleFiles(files) {
+  const arr = [...files];
+  const audioF = arr.find(isAudioFile);
+  const lyricF = arr.find((f) => !isAudioFile(f));
+  if (audioF) loadAudioFile(audioF);
+  if (lyricF) loadLyricsFile(lyricF);
+}
+
+document.getElementById("btnImport").addEventListener("click", () => fileLyrics.click());
+document.getElementById("btnAudio").addEventListener("click", () => fileAudio.click());
+fileLyrics.addEventListener("change", () => { if (fileLyrics.files[0]) loadLyricsFile(fileLyrics.files[0]); fileLyrics.value = ""; });
+fileAudio.addEventListener("change", () => { if (fileAudio.files[0]) loadAudioFile(fileAudio.files[0]); fileAudio.value = ""; });
+
+// ── drag & drop (lyrics or audio, anywhere on the page) ──
+const dropzone = document.getElementById("dropzone");
+let dragDepth = 0;
+function dragHasFiles(e) { return !!e.dataTransfer && [...e.dataTransfer.types].includes("Files"); }
+window.addEventListener("dragenter", (e) => { if (!dragHasFiles(e)) return; e.preventDefault(); dragDepth++; dropzone.classList.add("show"); });
+window.addEventListener("dragover", (e) => { if (!dragHasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
+window.addEventListener("dragleave", (e) => { if (!dragHasFiles(e)) return; dragDepth--; if (dragDepth <= 0) { dragDepth = 0; dropzone.classList.remove("show"); } });
+window.addEventListener("drop", (e) => { if (!dragHasFiles(e)) return; e.preventDefault(); dragDepth = 0; dropzone.classList.remove("show"); handleFiles(e.dataTransfer.files); });
+
+document.getElementById("btnExport").addEventListener("click", () => {
+  const name = (parsed.meta.ti || "lyrics").replace(/[\\/:*?"<>|]+/g, "_").trim() || "lyrics";
+  const blob = new Blob([area.value], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name + ".xlrc";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+langSelect.addEventListener("change", () => {
+  activeLang = langSelect.value;
+  renderLyrics();
+  syncActive(true);
+});
+
+// ── theme ──
+document.getElementById("btnTheme").addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("xlrc-theme", next); } catch (e) {}
+  refreshWaveColors();
+  drawWave();
+});
+
+// ── divider drag ──
+const divider = document.getElementById("divider");
+const main = document.getElementById("main");
+let dragging = false;
+divider.addEventListener("pointerdown", (e) => {
+  dragging = true;
+  divider.classList.add("dragging");
+  divider.setPointerCapture(e.pointerId);
+});
+divider.addEventListener("pointermove", (e) => {
+  if (!dragging) return;
+  const r = main.getBoundingClientRect();
+  const x = Math.min(r.width - 280, Math.max(260, e.clientX - r.left));
+  main.style.setProperty("--ed-col", x + "px");
+});
+divider.addEventListener("pointerup", (e) => {
+  dragging = false;
+  divider.classList.remove("dragging");
+  try { divider.releasePointerCapture(e.pointerId); } catch (_) {}
+});
+
+// ── editor events ──
+area.addEventListener("input", () => { renderHighlight(); scheduleParse(); });
+area.addEventListener("scroll", syncScroll);
+// keep tab key inserting a tab instead of leaving the field
+area.addEventListener("keydown", (e) => {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const s = area.selectionStart, en = area.selectionEnd;
+    area.value = area.value.slice(0, s) + "  " + area.value.slice(en);
+    area.selectionStart = area.selectionEnd = s + 2;
+    renderHighlight();
+    scheduleParse();
+  }
+});
+
+// ── init ──
+window.addEventListener("resize", () => { resizeWave(); drawWave(); });
+refreshWaveColors();
+area.value = SEED;
+renderHighlight();
+doParse();
+resizeWave();
+drawWave();
+</script>
+</body>
+</html>

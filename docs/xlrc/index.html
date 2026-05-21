@@ -302,25 +302,6 @@ nav {
   transform: translateY(-1px);
   box-shadow: 0 0 30px var(--accent-glow-strong);
 }
-.btn-primary.is-soon,
-.btn-primary.is-soon:hover {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--accent);
-  transform: none;
-  box-shadow: none;
-}
-.btn-primary .soon {
-  font-family: var(--mono);
-  font-size: 0.55rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  background: rgba(6, 6, 11, 0.25);
-  color: var(--bg-primary);
-  padding: 0.12rem 0.4rem;
-  border-radius: 100px;
-}
-
 .btn-outline {
   font-family: var(--sans);
   font-size: 0.85rem;
@@ -591,6 +572,7 @@ footer { border-top: 1px solid var(--border); padding: 3rem 0; position: relativ
     <span></span><span></span><span></span>
   </button>
   <ul class="nav-links" id="navLinks">
+    <li><a href="editor/">Editor</a></li>
     <li><a href="#demo">Demo</a></li>
     <li><a href="#format">Format</a></li>
     <li><a href="https://github.com/Boof2015/xlrc/blob/main/SPEC.md" target="_blank" rel="noopener">Spec</a></li>
@@ -610,9 +592,7 @@ footer { border-top: 1px solid var(--border); padding: 3rem 0; position: relativ
     real, open spec.
   </p>
   <div class="hero-actions">
-    <span class="btn-primary is-soon" role="button" aria-disabled="true" title="Editor coming soon">
-      Open Editor <span class="soon">soon</span>
-    </span>
+    <a class="btn-primary" href="editor/">Open Editor</a>
     <a class="btn-outline" href="https://github.com/Boof2015/xlrc/blob/main/SPEC.md" target="_blank" rel="noopener">
       <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5A1.5 1.5 0 0 1 3.5 1h6.586a1.5 1.5 0 0 1 1.06.44l2.415 2.413A1.5 1.5 0 0 1 14 4.914V13.5A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-11Zm3 4A.5.5 0 0 0 5 7h6a.5.5 0 0 0 0-1H5a.5.5 0 0 0 0 .5Zm0 3a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5Z"/></svg>
       View Spec
