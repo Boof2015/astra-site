@@ -1075,6 +1075,46 @@ nav {
   border-radius: 3px;
 }
 
+/* ── XLRC mini preview (source -> rendered) ── */
+.xlrc-preview {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 760px) { .xlrc-preview { grid-template-columns: 1fr 1fr; } }
+.xlrc-pane {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+.xlrc-pane-head {
+  padding: 0.6rem 1rem;
+  background: rgba(255, 255, 255, 0.015);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.xlrc-src {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.9;
+  color: var(--text-secondary);
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+}
+.xlrc-src .t-time { color: var(--accent); }
+.xlrc-src .t-tr { color: var(--accent-dim); }
+.xlrc-rendered { padding: 1rem 1.2rem; }
+.xr-line { padding: 0.45rem 0; }
+.xr-line + .xr-line { border-top: 1px solid var(--border); }
+.xr-text { font-size: 1.15rem; color: var(--text-primary); line-height: 2; }
+.xr-text ruby rt { font-family: var(--sans); font-size: 0.42em; color: var(--accent); font-weight: 500; }
+.xr-tr { font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.1rem; }
+
 /* ── DOWNLOAD ── */
 .download-section { padding: 6rem 0; }
 
@@ -1523,6 +1563,8 @@ footer {
     <li><a href="#specs">Specs</a></li>
     <li><a href="#integrations">Integrations</a></li>
     <li><a href="#api">Ecosystem</a></li>
+    <li><a href="/prism/">Prism</a></li>
+    <li><a href="/xlrc/">XLRC</a></li>
     <li><a href="https://github.com/Boof2015/astra/wiki" target="_blank" rel="noopener">Wiki</a></li>
     <li><a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="nav-download">Download</a></li>
   </ul>
@@ -1815,6 +1857,35 @@ footer {
       </a>
     </div>
   </div>
+
+  <!-- XLRC -->
+  <div class="prism-showcase">
+    <div class="prism-text">
+      <h3><a href="/xlrc/" style="color: inherit;">XLRC</a> <span class="coming-soon-tag" style="color: var(--accent); background: var(--accent-glow);">Day-one support</span></h3>
+      <p>XLRC is an open lyric format that extends LRC with inline translations, furigana, and word-level timing. Astra reads it natively, and there's an in-browser editor for writing and timing, no install.</p>
+      <div style="margin-top: 1.2rem; display: flex; flex-wrap: wrap; gap: 0.6rem;">
+        <a href="/xlrc/" class="btn-outline" style="font-size: 0.78rem;">Explore XLRC →</a>
+        <a href="/xlrc/editor/" class="btn-outline" style="font-size: 0.78rem;">Open the editor →</a>
+      </div>
+    </div>
+    <div class="xlrc-preview">
+      <div class="xlrc-pane">
+        <div class="xlrc-pane-head">example.xlrc</div>
+        <pre class="xlrc-src"><span class="t-time">[00:12.40]</span>私[わたし]が歌[うた]う
+<span class="t-tr">[&gt;en]</span>I sing
+<span class="t-tr">[&gt;ja-Latn]</span>watashi ga utau</pre>
+      </div>
+      <div class="xlrc-pane">
+        <div class="xlrc-pane-head">rendered</div>
+        <div class="xlrc-rendered">
+          <div class="xr-line">
+            <div class="xr-text"><ruby>私<rt>わたし</rt></ruby>が<ruby>歌<rt>うた</rt></ruby>う</div>
+            <div class="xr-tr">I sing</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <div class="section-divider"></div>
@@ -1913,6 +1984,8 @@ footer {
     <div class="footer-inner">
       <div class="footer-left">© 2026 Astra // Made by <a href="https://github.com/Boof2015" target="_blank" rel="noopener">Boof2015</a></div>
       <ul class="footer-links">
+        <li><a href="/prism/">Prism</a></li>
+        <li><a href="/xlrc/">XLRC</a></li>
         <li><a href="https://github.com/Boof2015/astra" target="_blank" rel="noopener">GitHub</a></li>
         <li><a href="https://github.com/Boof2015/astra/wiki" target="_blank" rel="noopener">Wiki</a></li>
         <li><a href="https://ko-fi.com/boof2015" target="_blank" rel="noopener">Ko-fi</a></li>
