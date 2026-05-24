@@ -46,7 +46,8 @@ a {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -146,6 +147,13 @@ nav {
   margin-bottom: 1.25rem;
 }
 
+.pane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .eyebrow {
   color: var(--accent);
   font-family: var(--mono);
@@ -185,6 +193,12 @@ h3 {
   background: var(--bg-panel-soft);
   cursor: pointer;
   transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .refresh-button {
@@ -512,6 +526,355 @@ h3 {
   text-transform: uppercase;
 }
 
+body.submit-mode {
+  overflow: hidden;
+  background: #0f0f0f;
+}
+
+.submit-mode nav,
+.submit-mode .topo-grid,
+.submit-mode .search-pane {
+  display: none;
+}
+
+.submit-mode .app-shell {
+  min-height: 100vh;
+  padding-top: 0;
+  grid-template-columns: 1fr;
+}
+
+.submit-mode .detail-pane {
+  min-height: 100vh;
+  padding: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.submit-editor-app {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: #0f0f0f;
+  color: #f0f0f0;
+}
+
+.submit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid #2a2a2a;
+  background: #171717;
+}
+
+.submit-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  margin-right: 0.35rem;
+}
+
+.submit-logo {
+  color: #f0f0f0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+
+.submit-brand span {
+  color: #6a6a6a;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.submit-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.submit-toolbar-spacer {
+  flex: 1;
+}
+
+.submit-tool-button {
+  height: 32px;
+  padding: 0 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #3d3d3d;
+  border-radius: 8px;
+  color: #9a9a9a;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), color var(--transition), opacity var(--transition);
+}
+
+.submit-tool-button:hover {
+  border-color: #6a6a6a;
+  color: #f0f0f0;
+  background: #262626;
+}
+
+.submit-tool-button.primary {
+  border-color: #f0f0f0;
+  color: #0f0f0f;
+  background: #f0f0f0;
+  font-weight: 700;
+}
+
+.submit-tool-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.submit-meta-bar {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) minmax(110px, 140px) auto;
+  gap: 0.65rem;
+  align-items: end;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid #2a2a2a;
+  background: #171717;
+}
+
+.submit-meta-bar label {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.submit-meta-bar span {
+  color: #6a6a6a;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.submit-meta-bar input {
+  width: 100%;
+  height: 34px;
+  padding: 0 0.7rem;
+  border: 1px solid #3d3d3d;
+  border-radius: 8px;
+  color: #f0f0f0;
+  background: #1c1c1c;
+  outline: none;
+}
+
+.submit-meta-bar input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
+}
+
+.submit-status-pill {
+  height: 34px;
+  min-width: 86px;
+  padding: 0 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #3d3d3d;
+  border-radius: 8px;
+  color: #9a9a9a;
+  background: #1c1c1c;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.submit-status-pill.valid {
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.submit-status-pill.invalid {
+  border-color: rgba(248, 113, 113, 0.48);
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.submit-main {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) 6px minmax(300px, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.submit-source-pane {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  background: #0f0f0f;
+}
+
+.submit-gutter {
+  overflow: hidden;
+  padding: 12px 0;
+  border-right: 1px solid #2a2a2a;
+  background: #0f0f0f;
+  color: #6a6a6a;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 21px;
+  user-select: none;
+}
+
+.submit-ln {
+  height: 21px;
+  padding: 0 10px 0 6px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.submit-ln.warn {
+  color: #f87171;
+}
+
+.submit-source-area {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 0;
+  resize: none;
+  color: #d6d6d6;
+  background: #0f0f0f;
+  outline: none;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 21px;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.submit-divider {
+  background: #2a2a2a;
+}
+
+.submit-preview-pane {
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(2rem, 5vw, 5rem);
+  background: #111111;
+}
+
+.submit-preview-surface {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.2rem;
+}
+
+.submit-error-list {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 560px;
+  padding-left: 1rem;
+  border-left: 2px solid #f87171;
+  color: #b8b8b8;
+}
+
+.submit-error-list strong {
+  color: #f0f0f0;
+  font-size: 1rem;
+}
+
+.submit-error-list div {
+  color: #a8a8a8;
+  font-size: 0.86rem;
+}
+
+.submit-preview-lines {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 620px;
+}
+
+.submit-preview-line {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.submit-preview-line time {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.submit-preview-line strong {
+  display: block;
+  color: #d6d6d6;
+  font-size: clamp(1.25rem, 2vw, 2rem);
+  font-weight: 500;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.submit-preview-line span {
+  display: block;
+  margin-top: 0.25rem;
+  color: #8a8a8a;
+  font-size: 0.9rem;
+}
+
+.submit-preview-empty {
+  color: #6a6a6a;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.submit-statusbar {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 0 1rem;
+  border-top: 1px solid #2a2a2a;
+  color: #6a6a6a;
+  background: #171717;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.submit-statusbar span:first-child {
+  color: #9a9a9a;
+}
+
+.submit-statusbar span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 920px) {
   nav {
     padding: 0 1rem;
@@ -539,6 +902,19 @@ h3 {
   .loading-state,
   .error-state {
     min-height: 340px;
+  }
+
+  .submit-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(340px, 1fr) 1px minmax(280px, 0.9fr);
+  }
+
+  .submit-divider {
+    min-height: 1px;
+  }
+
+  .submit-meta-bar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 120px auto;
   }
 }
 
@@ -580,5 +956,47 @@ h3 {
   .lyric-row {
     grid-template-columns: 1fr;
     gap: 0.35rem;
+  }
+
+  .submit-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .submit-toolbar-spacer {
+    display: none;
+  }
+
+  .submit-toolbar-group {
+    flex-wrap: wrap;
+  }
+
+  .submit-tool-button {
+    height: 30px;
+    padding: 0 0.65rem;
+  }
+
+  .submit-meta-bar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .submit-status-pill {
+    width: 100%;
+  }
+
+  .submit-preview-pane {
+    padding: 1.25rem;
+  }
+
+  .submit-preview-line {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .submit-statusbar {
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 0.35rem 1rem;
+    padding: 0.55rem 1rem;
   }
 }

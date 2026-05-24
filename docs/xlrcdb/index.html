@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<script src="app.js" defer></script>
+<script src="app.js" type="module"></script>
 </head>
 <body>
 <div class="topo-grid" aria-hidden="true"></div>
@@ -29,6 +29,7 @@
   </a>
   <ul class="nav-links">
     <li><a href="/xlrc/">XLRC</a></li>
+    <li><a href="#/submit">Submit</a></li>
     <li><a href="https://github.com/Boof2015/xlrcdb" target="_blank" rel="noopener">Data Repo</a></li>
     <li><a href="https://www.npmjs.com/package/@boof2015/xlrc" target="_blank" rel="noopener">npm</a></li>
   </ul>
@@ -41,7 +42,10 @@
         <p class="eyebrow">Static lyric index</p>
         <h1>XLRCDB</h1>
       </div>
-      <button class="refresh-button" id="refreshButton" type="button">Refresh</button>
+      <div class="pane-actions">
+        <a class="link-button" href="#/submit">Submit</a>
+        <button class="refresh-button" id="refreshButton" type="button">Refresh</button>
+      </div>
     </div>
 
     <div class="source-strip">

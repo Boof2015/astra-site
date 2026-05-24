@@ -2,20 +2,23 @@
 // Re-copy from the xlrc repo's dist/index.js after running `npm run build` there.
 // src/parser.ts
 var HEADER_TAG_PATTERN = /^\[([A-Za-z][A-Za-z0-9_-]*):([^\]]*)\]$/;
-var LINE_TIMESTAMP_PATTERN = /^\[(\d+):(\d{2})\.(\d{2})\](.*)$/;
+var TIMESTAMP_PATTERN_SOURCE = String.raw`\d+:\d{2}(?:\.\d{1,3})?`;
+var TIMESTAMP_VALUE_PATTERN = new RegExp(`^(${TIMESTAMP_PATTERN_SOURCE})$`);
+var LINE_TIMESTAMP_PATTERN = new RegExp(`^\\[(${TIMESTAMP_PATTERN_SOURCE})\\]`);
 var TRANSLATION_PATTERN = /^\[>([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)\](.*)$/;
 var VOICE_PATTERN = /^\[v:([^\]]*)\](.*)$/;
-var WORD_TIMESTAMP_PATTERN = /<(\d+):(\d{2})\.(\d{2})>/g;
+var WORD_TIMESTAMP_PATTERN = new RegExp(`<(${TIMESTAMP_PATTERN_SOURCE})>`, "g");
+var WORD_TIMESTAMP_TAG_PATTERN = new RegExp(`^<${TIMESTAMP_PATTERN_SOURCE}>$`);
 var ANY_ANGLE_TAG_PATTERN = /<[^>]*>/g;
 var KANA_PATTERN = /^[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff\uff66-\uff9f]+$/u;
 var KANJI_PATTERN = /[\u3400-\u9fff々〆ヵヶ]/u;
-var KNOWN_HEADERS = /* @__PURE__ */ new Set(["ti", "ar", "al", "by", "offset", "lang", "langs", "xlrc"]);
+var KNOWN_HEADERS = /* @__PURE__ */ new Set(["ti", "ar", "al", "length", "by", "offset", "lang", "langs", "xlrc"]);
 function parseXLRC(input) {
   const warnings = [];
   const meta = {};
   const lines = [];
   const rows = input.replace(/^\uFEFF/, "").split(/\r?\n/);
-  let lastLyricLine;
+  let lastLyricLines = [];
   let inHeader = true;
   rows.forEach((rawLine, index) => {
     const lineNumber = index + 1;
@@ -25,26 +28,32 @@ function parseXLRC(input) {
     }
     const translation = parseTranslationLine(line, lineNumber, warnings);
     if (translation) {
-      if (!lastLyricLine) {
+      if (lastLyricLines.length === 0) {
         warn(warnings, lineNumber, "orphan-translation", "Translation line has no preceding lyric line");
         return;
       }
-      lastLyricLine.translations.push(translation);
+      lastLyricLines.forEach((lyricLine) => lyricLine.translations.push({ ...translation }));
       return;
     }
-    const timestampMatch = line.match(LINE_TIMESTAMP_PATTERN);
-    if (timestampMatch) {
+    const timestampLine = parseLineTimestamps(line, lineNumber, warnings);
+    if (timestampLine === "malformed") {
       inHeader = false;
-      const timestamp = readTimestamp(timestampMatch[1], timestampMatch[2], timestampMatch[3]);
-      if (timestamp.warning) {
-        warn(warnings, lineNumber, "malformed-timestamp", timestamp.warning);
-        lastLyricLine = void 0;
+      lastLyricLines = [];
+      return;
+    }
+    if (timestampLine) {
+      inHeader = false;
+      const [firstTimestamp, ...additionalTimestamps] = timestampLine.timestamps;
+      if (firstTimestamp === void 0) {
+        lastLyricLines = [];
         return;
       }
-      const body = timestampMatch[4] ?? "";
-      const parsedLine = parseLyricLineBody(timestamp.timestamp, body, lineNumber, warnings);
-      lines.push(parsedLine);
-      lastLyricLine = parsedLine;
+      const firstLine = parseLyricLineBody(firstTimestamp, timestampLine.body, lineNumber, warnings);
+      lastLyricLines = [
+        firstLine,
+        ...additionalTimestamps.map((timestamp) => cloneLyricLine(firstLine, timestamp))
+      ];
+      lines.push(...lastLyricLines);
       return;
     }
     if (inHeader) {
@@ -56,21 +65,57 @@ function parseXLRC(input) {
     }
     if (/^\[\d+:\d/.test(line)) {
       warn(warnings, lineNumber, "malformed-timestamp", "Malformed timestamp; line was skipped");
-      lastLyricLine = void 0;
+      lastLyricLines = [];
       inHeader = false;
       return;
     }
     if (line.startsWith("[")) {
       warn(warnings, lineNumber, "unrecognized-line", "Unrecognized line prefix; line was skipped");
-      lastLyricLine = void 0;
+      lastLyricLines = [];
       inHeader = false;
       return;
     }
     warn(warnings, lineNumber, "unrecognized-line", "Line has no timestamp or supported tag; line was skipped");
-    lastLyricLine = void 0;
+    lastLyricLines = [];
     inHeader = false;
   });
   return { meta, lines, warnings };
+}
+function parseLineTimestamps(line, lineNumber, warnings) {
+  const timestamps = [];
+  let cursor = 0;
+  while (cursor < line.length) {
+    const timestampMatch = line.slice(cursor).match(LINE_TIMESTAMP_PATTERN);
+    if (!timestampMatch) {
+      break;
+    }
+    const timestamp = readTimestamp(timestampMatch[1] ?? "");
+    if (timestamp.warning) {
+      warn(warnings, lineNumber, "malformed-timestamp", timestamp.warning);
+      return "malformed";
+    }
+    timestamps.push(timestamp.timestamp);
+    cursor += timestampMatch[0].length;
+  }
+  if (timestamps.length === 0) {
+    return void 0;
+  }
+  return {
+    timestamps,
+    body: line.slice(cursor)
+  };
+}
+function cloneLyricLine(line, timestamp) {
+  return {
+    ...line,
+    timestamp,
+    words: line.words.map((word) => ({
+      ...word,
+      furigana: word.furigana.map((entry) => ({ ...entry }))
+    })),
+    furigana: line.furigana.map((entry) => ({ ...entry })),
+    translations: []
+  };
 }
 function applyHeader(meta, key, value, line, warnings) {
   if (!KNOWN_HEADERS.has(key)) {
@@ -155,7 +200,7 @@ function parseWords(rawText, line, warnings) {
   const matches = Array.from(rawText.matchAll(WORD_TIMESTAMP_PATTERN));
   const words = [];
   matches.forEach((match, index) => {
-    const timestamp = readTimestamp(match[1], match[2], match[3]);
+    const timestamp = readTimestamp(match[1] ?? "");
     if (timestamp.warning) {
       warn(warnings, line, "malformed-word-timestamp", timestamp.warning, match.index);
       return;
@@ -177,6 +222,7 @@ function parseWords(rawText, line, warnings) {
 }
 function parseFuriganaText(input, line, warnings) {
   let text = "";
+  let furiganaBaseBoundary = 0;
   const furigana = [];
   const warnedColumns = /* @__PURE__ */ new Set();
   for (let index = 0; index < input.length; index += 1) {
@@ -194,8 +240,18 @@ function parseFuriganaText(input, line, warnings) {
     const previousCharacter = text[text.length - 1];
     const mayBeFurigana = Boolean(previousCharacter) && !/\s/.test(previousCharacter ?? "") && previousCharacter !== "]";
     if (mayBeFurigana && isKana(reading)) {
-      const start = findFuriganaBaseStart(text);
+      const start = findFuriganaBaseStart(text, furiganaBaseBoundary);
       if (start === void 0) {
+        if (hasMixedKanaFuriganaBase(text, furiganaBaseBoundary) && !warnedColumns.has(index)) {
+          warnedColumns.add(index);
+          warn(
+            warnings,
+            line,
+            "malformed-furigana",
+            "Furigana must attach directly to kanji; annotate only the kanji portion",
+            index + 1
+          );
+        }
         text += character;
         continue;
       }
@@ -207,6 +263,7 @@ function parseFuriganaText(input, line, warnings) {
         reading,
         line
       });
+      furiganaBaseBoundary = text.length;
       index = closeIndex;
       continue;
     }
@@ -221,34 +278,65 @@ function parseFuriganaText(input, line, warnings) {
 function warnForMalformedWordTags(rawText, line, warnings) {
   for (const match of rawText.matchAll(ANY_ANGLE_TAG_PATTERN)) {
     const tag = match[0];
-    if (!/^<\d+:\d{2}\.\d{2}>$/.test(tag)) {
+    if (!WORD_TIMESTAMP_TAG_PATTERN.test(tag)) {
       warn(warnings, line, "malformed-word-timestamp", "Malformed word timestamp was treated as literal text", match.index);
     }
   }
 }
-function readTimestamp(minutesValue = "", secondsValue = "", centisecondsValue = "") {
+function readTimestamp(value) {
+  const timestampMatch = value.match(TIMESTAMP_VALUE_PATTERN);
+  if (!timestampMatch) {
+    return { timestamp: 0, warning: "Timestamp contains non-numeric values" };
+  }
+  const [minutesValue = "", secondsAndFractionValue = ""] = (timestampMatch[1] ?? "").split(":");
+  const [secondsValue = "", fractionValue = ""] = secondsAndFractionValue.split(".");
   const minutes = Number.parseInt(minutesValue, 10);
   const seconds = Number.parseInt(secondsValue, 10);
-  const centiseconds = Number.parseInt(centisecondsValue, 10);
-  if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || !Number.isFinite(centiseconds)) {
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) {
     return { timestamp: 0, warning: "Timestamp contains non-numeric values" };
   }
   if (seconds > 59) {
     return { timestamp: 0, warning: "Timestamp seconds must be less than 60" };
   }
   return {
-    timestamp: minutes * 6e4 + seconds * 1e3 + centiseconds * 10
+    timestamp: minutes * 6e4 + seconds * 1e3 + readFractionMilliseconds(fractionValue)
   };
 }
-function findFuriganaBaseStart(text) {
+function readFractionMilliseconds(value) {
+  if (value.length === 0) {
+    return 0;
+  }
+  return Number.parseInt(value.padEnd(3, "0"), 10);
+}
+function findFuriganaBaseStart(text, lowerBound = 0) {
   let start = text.length;
-  while (start > 0 && isKanji(text[start - 1] ?? "")) {
+  while (start > lowerBound && isKanji(text[start - 1] ?? "")) {
     start -= 1;
   }
   if (start < text.length) {
     return start;
   }
   return void 0;
+}
+function hasMixedKanaFuriganaBase(text, lowerBound) {
+  let index = text.length;
+  let hasKanaCharacter = false;
+  let hasKanjiCharacter = false;
+  while (index > lowerBound) {
+    const character = text[index - 1] ?? "";
+    if (isKana(character)) {
+      hasKanaCharacter = true;
+      index -= 1;
+      continue;
+    }
+    if (isKanji(character)) {
+      hasKanjiCharacter = true;
+      index -= 1;
+      continue;
+    }
+    break;
+  }
+  return hasKanaCharacter && hasKanjiCharacter;
 }
 function isKana(value) {
   return KANA_PATTERN.test(value);
@@ -266,7 +354,7 @@ function warn(warnings, line, code, message, column) {
 }
 
 // src/serializer.ts
-var KNOWN_META_ORDER = ["ti", "ar", "al", "by", "offset", "lang", "langs", "xlrc"];
+var KNOWN_META_ORDER = ["ti", "ar", "al", "length", "by", "offset", "lang", "langs", "xlrc"];
 function serializeXLRC(file) {
   const output = [];
   const headers = serializeHeaders(file.meta);
@@ -337,6 +425,7 @@ function formatTimestamp(timestamp) {
 
 // src/validator.ts
 var LANGUAGE_TAG_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
+var LENGTH_TAG_PATTERN = /^\d+:[0-5]\d$/;
 var KANA_PATTERN2 = /^[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff\uff66-\uff9f]+$/u;
 function validateXLRC(file) {
   const warnings = [];
@@ -358,6 +447,9 @@ function validateMeta(file, warnings) {
   }
   if (file.meta.offset !== void 0 && !Number.isInteger(file.meta.offset)) {
     warn2(warnings, 0, "invalid-offset", "Meta offset must be an integer number of milliseconds");
+  }
+  if (file.meta.length !== void 0 && !isLengthTag(file.meta.length)) {
+    warn2(warnings, 0, "invalid-length", "Meta length must use mm:ss format");
   }
   if (file.meta.lang !== void 0 && !isLanguageTag(file.meta.lang)) {
     warn2(warnings, 0, "invalid-lang", "Meta lang must be a non-empty BCP 47-style language tag");
@@ -469,13 +561,132 @@ function isValidTimestamp(value) {
 function isLanguageTag(value) {
   return typeof value === "string" && LANGUAGE_TAG_PATTERN.test(value);
 }
+function isLengthTag(value) {
+  return typeof value === "string" && LENGTH_TAG_PATTERN.test(value);
+}
 function isSerializableMetaValue(value) {
   return value === void 0 || typeof value === "string" || typeof value === "number" || Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 function warn2(warnings, line, code, message) {
   warnings.push({ line, code, message });
 }
+
+// src/lookup.ts
+function normalizeLookupKey(value) {
+  return value.normalize("NFKC").toLowerCase().replace(/\s+/gu, " ").trim();
+}
+async function lookup(options) {
+  const fetcher = resolveFetch(options.fetch);
+  const source = normalizeSource(options.source);
+  let aliasesIndex;
+  let artistIndex;
+  let lyricsText;
+  try {
+    aliasesIndex = await fetchAliasesIndex({ source, fetch: fetcher });
+    const artistId = findArtist(aliasesIndex, options.artist);
+    if (!artistId) {
+      return { found: false, reason: "artist_not_found" };
+    }
+    artistIndex = await fetchArtistIndex({ source, artistId, fetch: fetcher });
+    const track = findTrack(artistIndex, {
+      title: options.title,
+      length: options.length
+    });
+    if (!track) {
+      return { found: false, reason: "track_not_found" };
+    }
+    lyricsText = await fetchText(fetcher, joinUrl(source, track.path));
+    try {
+      return {
+        found: true,
+        lyrics: parseXLRC(lyricsText),
+        path: track.path
+      };
+    } catch {
+      return { found: false, reason: "parse_error" };
+    }
+  } catch {
+    return { found: false, reason: "fetch_error" };
+  }
+}
+async function fetchAliasesIndex(options) {
+  return assertAliasesIndex(await fetchJson(resolveFetch(options.fetch), joinUrl(normalizeSource(options.source), "index/aliases.json")));
+}
+function findArtist(index, artist) {
+  return index.aliases[normalizeLookupKey(artist)];
+}
+async function fetchArtistIndex(options) {
+  return assertArtistIndex(
+    await fetchJson(
+      resolveFetch(options.fetch),
+      joinUrl(normalizeSource(options.source), artistIndexPath(options.artistId))
+    )
+  );
+}
+function findTrack(index, query) {
+  const normalizedTitle = normalizeLookupKey(query.title);
+  const candidates = index.tracks.filter((track) => Math.abs(track.length - query.length) <= 2 && normalizeLookupKey(track.title) === normalizedTitle);
+  if (candidates.length === 0) {
+    return void 0;
+  }
+  return [...candidates].sort((left, right) => {
+    const leftExactTitle = left.title === query.title ? 0 : 1;
+    const rightExactTitle = right.title === query.title ? 0 : 1;
+    return leftExactTitle - rightExactTitle || Math.abs(left.length - query.length) - Math.abs(right.length - query.length);
+  })[0];
+}
+function artistIndexPath(artistId) {
+  const body = artistId.startsWith("art_") ? artistId.slice(4) : artistId;
+  return `index/artists/${body.slice(0, 2)}/${body.slice(2, 4)}/${artistId}.json`;
+}
+async function fetchJson(fetcher, url) {
+  const response = await fetcher(url);
+  if (!response.ok) {
+    throw new Error(`Fetch failed for ${url}`);
+  }
+  return response.json();
+}
+async function fetchText(fetcher, url) {
+  const response = await fetcher(url);
+  if (!response.ok) {
+    throw new Error(`Fetch failed for ${url}`);
+  }
+  return response.text();
+}
+function assertAliasesIndex(value) {
+  if (!value || typeof value !== "object" || !("aliases" in value) || typeof value.aliases !== "object") {
+    throw new Error("Invalid aliases index");
+  }
+  return value;
+}
+function assertArtistIndex(value) {
+  if (!value || typeof value !== "object" || !("tracks" in value) || !Array.isArray(value.tracks)) {
+    throw new Error("Invalid artist index");
+  }
+  return value;
+}
+function resolveFetch(fetcher) {
+  if (fetcher) {
+    return fetcher;
+  }
+  if (typeof globalThis.fetch !== "function") {
+    throw new Error("No fetch implementation available");
+  }
+  return async (input) => globalThis.fetch(input);
+}
+function normalizeSource(source) {
+  return source.replace(/\/+$/u, "");
+}
+function joinUrl(source, path) {
+  return `${source}/${path.replace(/^\/+/u, "")}`;
+}
 export {
+  fetchAliasesIndex,
+  fetchArtistIndex,
+  findArtist,
+  findTrack,
+  lookup,
+  normalizeLookupKey,
   parseXLRC,
   serializeXLRC,
   validateXLRC
