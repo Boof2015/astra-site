@@ -2,6 +2,7 @@ import { parseXLRC, validateXLRC } from "../xlrc/assets/xlrc.js";
 
 const DATA_SOURCE = "https://boof2015.github.io/xlrcdb";
 const DATA_REPO_URL = "https://github.com/Boof2015/xlrcdb";
+const CONTRIBUTING_URL = `${DATA_REPO_URL}/blob/main/CONTRIBUTING.md`;
 const SUBMISSION_STORAGE_KEY = "xlrcdb-submission-draft";
 const HEADER_TAG_PATTERN = /^\[([A-Za-z][A-Za-z0-9_-]*):([^\]]*)\]\s*$/u;
 const LENGTH_PATTERN = /^(\d+):([0-5]\d)$/u;
@@ -369,7 +370,7 @@ function renderSubmit() {
           <a class="submit-tool-button" href="#/">Search</a>
           <button class="submit-tool-button" id="copySubmission" type="button" disabled>Copy</button>
           <button class="submit-tool-button primary" id="downloadSubmission" type="button" disabled>Export .xlrc</button>
-          <a class="submit-tool-button" href="${DATA_REPO_URL}/pulls" target="_blank" rel="noopener">Open PR</a>
+          <a class="submit-tool-button" href="${CONTRIBUTING_URL}" target="_blank" rel="noopener">PR Guide</a>
         </div>
       </header>
 
