@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XLRCDB · Community Lyrics Index</title>
+<link rel="icon" type="image/svg+xml" href="../xlrc/favicon.svg">
+<meta name="description" content="A static community database for XLRC lyric files, searchable by artist and browsable by track.">
+<meta name="theme-color" content="#06060b">
+
+<meta property="og:title" content="XLRCDB · Community Lyrics Index">
+<meta property="og:description" content="A static community database for XLRC lyric files.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://astramusic.dev/xlrcdb/">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="topo-grid" aria-hidden="true"></div>
+
+<nav>
+  <a class="nav-logo" href="/" aria-label="Astra home">
+    <img src="../assets/astra-logo-layered.svg" alt="" class="nav-logo-mark">
+    <span>XLRCDB</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="/xlrc/">XLRC</a></li>
+    <li><a href="https://github.com/Boof2015/xlrcdb" target="_blank" rel="noopener">Data Repo</a></li>
+    <li><a href="https://www.npmjs.com/package/@boof2015/xlrc" target="_blank" rel="noopener">npm</a></li>
+  </ul>
+</nav>
+
+<main class="app-shell">
+  <aside class="search-pane" aria-label="XLRCDB search">
+    <div class="pane-header">
+      <div>
+        <p class="eyebrow">Static lyric index</p>
+        <h1>XLRCDB</h1>
+      </div>
+      <button class="refresh-button" id="refreshButton" type="button">Refresh</button>
+    </div>
+
+    <div class="source-strip">
+      <span class="status-dot" id="statusDot" aria-hidden="true"></span>
+      <span id="sourceStatus">Connecting to source</span>
+    </div>
+
+    <form class="search-form" id="searchForm">
+      <label for="artistSearch">Artist</label>
+      <input id="artistSearch" name="artist" type="search" autocomplete="off" placeholder="Artist name or alias">
+
+      <label for="trackSearch">Track</label>
+      <input id="trackSearch" name="track" type="search" autocomplete="off" placeholder="Filter tracks after artist match">
+    </form>
+
+    <div class="stats" aria-label="Database summary">
+      <div>
+        <span id="artistCount">0</span>
+        <small>artists</small>
+      </div>
+      <div>
+        <span id="aliasCount">0</span>
+        <small>aliases</small>
+      </div>
+    </div>
+
+    <div class="results" id="results" aria-live="polite"></div>
+  </aside>
+
+  <section class="detail-pane" id="detailPane" aria-live="polite">
+    <div class="empty-state">
+      <p class="eyebrow">Live source</p>
+      <h2>Loading XLRCDB</h2>
+      <p>Fetching the static index from GitHub Pages.</p>
+    </div>
+  </section>
+</main>
+</body>
+</html>
