@@ -1,0 +1,10 @@
+name = "xlrcdb-oauth"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Public values (safe to commit). Must match github.js CONFIG.clientId.
+[vars]
+GITHUB_CLIENT_ID = "Ov23likASNKQOx8gHrgM"
+ALLOWED_ORIGIN = "https://astramusic.dev"
+
+# Secret (do NOT commit; set with: wrangler secret put GITHUB_CLIENT_SECRET)
