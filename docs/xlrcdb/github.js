@@ -153,9 +153,13 @@ export function createGitHub() {
 
     onProgress("Preparing your fork");
     await ensureFork(user.login);
+    // Bring the fork's main up to date with upstream (best-effort). Branching off
+    // the UPSTREAM head 404s when the fork is behind, so we base the branch on the
+    // fork's own main, which always exists in the fork.
+    await syncFork(user.login).catch(() => {});
 
     onProgress("Locating the latest main");
-    const baseSha = await refSha(UPSTREAM.owner, UPSTREAM.repo, BASE_BRANCH);
+    const baseSha = await refSha(user.login, UPSTREAM.repo, BASE_BRANCH);
 
     const branch = `${branchPrefix}-${Date.now().toString(36)}`;
     onProgress("Creating a branch");
@@ -237,6 +241,11 @@ export function createGitHub() {
       } catch (_) {}
     }
     throw new Error("Timed out waiting for your fork to be created.");
+  }
+
+  // Fast-forward the fork's branch to upstream so the branch base exists locally.
+  async function syncFork(login) {
+    await api("POST", `/repos/${login}/${UPSTREAM.repo}/merge-upstream`, { branch: BASE_BRANCH });
   }
 
   async function refSha(owner, repo, branch) {
