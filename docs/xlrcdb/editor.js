@@ -86,7 +86,8 @@ export function createEditor(container, options = {}) {
     pathText: root.querySelector("#edPath"),
     lineCount: root.querySelector("#edLineCount"),
     langSummary: root.querySelector("#edLangs"),
-    drop: root.querySelector("#edDrop")
+    drop: root.querySelector("#edDrop"),
+    toast: root.querySelector("#edToast")
   };
 
   // Declared up here because the mount sequence below calls resolveArtistDebounced.
@@ -315,7 +316,10 @@ export function createEditor(container, options = {}) {
   // ─────────────────────────── validation + paint ───────────────────────────
   function paint() {
     // Editing clears any stale submit feedback (errors / "submitted" notice).
-    if (state.submitState.kind !== "busy") state.submitState = { kind: "idle", message: "" };
+    if (state.submitState.kind !== "busy") {
+      state.submitState = { kind: "idle", message: "" };
+      hideToast();
+    }
     const output = computeOutput(el.area.value);
     state.output = output;
     state.parsed = output.parsed;
@@ -579,6 +583,26 @@ export function createEditor(container, options = {}) {
     state.submitState = { kind, message };
     el.submitBtn.disabled = kind === "busy" || !state.output?.valid;
     renderStatus(state.output, false);
+    // Mirror submit lifecycle into a prominent toast (the statusbar is easy to miss).
+    if (kind === "busy") showToast("busy", escapeHtml(message), false);
+    else if (kind === "done") showToast("success", message, true); // message is safe HTML (PR link)
+    else if (kind === "idle" && message) showToast("error", escapeHtml(message), true);
+    else hideToast();
+  }
+
+  const TOAST_TAGS = { busy: "Submitting…", success: "Submitted", error: "Couldn't submit" };
+  function showToast(kind, html, dismissable) {
+    el.toast.className = `ed-toast show ${kind}`;
+    el.toast.innerHTML = `
+      <span class="ed-toast-tag">${TOAST_TAGS[kind] ?? ""}</span>
+      <div class="ed-toast-body">${html}</div>
+      ${dismissable ? '<button class="ed-toast-close" type="button" aria-label="Dismiss">×</button>' : ""}`;
+    const close = el.toast.querySelector(".ed-toast-close");
+    if (close) close.addEventListener("click", hideToast);
+  }
+  function hideToast() {
+    el.toast.className = "ed-toast";
+    el.toast.innerHTML = "";
   }
 
   // ─────────────────────────── local actions ───────────────────────────
@@ -706,6 +730,8 @@ function template(mode) {
         <div class="dz-sub">.xlrc lyrics &nbsp;·&nbsp; or an audio file</div>
       </div>
     </div>
+
+    <div class="ed-toast" id="edToast" role="status" aria-live="polite"></div>
 
     <audio id="edAudio" preload="metadata"></audio>
   </article>`;

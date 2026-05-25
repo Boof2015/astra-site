@@ -1482,6 +1482,78 @@ body.submit-mode {
   color: var(--text-muted);
 }
 
+/* Submit lifecycle toast (slides down from the top, hard to miss). */
+.ed-toast {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 300;
+  max-width: min(560px, 92%);
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border-bright);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transform: translateX(-50%) translateY(-150%);
+  pointer-events: none;
+  transition: transform var(--transition), opacity var(--transition);
+}
+
+.ed-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0.7rem);
+  pointer-events: auto;
+}
+
+.ed-toast.busy { border-left-color: var(--accent); }
+.ed-toast.success { border-left-color: var(--green); }
+.ed-toast.error { border-left-color: var(--red); }
+
+.ed-toast-tag {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.ed-toast.busy .ed-toast-tag { color: var(--accent); }
+.ed-toast.success .ed-toast-tag { color: var(--green); }
+.ed-toast.error .ed-toast-tag { color: var(--red); }
+
+.ed-toast-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ed-toast-body a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.ed-toast-close {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.2rem;
+}
+
+.ed-toast-close:hover { color: var(--text-primary); }
+
 @media (max-width: 920px) {
   nav { padding: 0 1rem; }
   .nav-links { gap: 0.9rem; }
