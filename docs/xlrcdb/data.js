@@ -53,8 +53,11 @@ export function getTrackText(trackPath) {
   return trackTextCache.get(trackPath);
 }
 
+// "no-cache" makes the browser revalidate (conditional GET) rather than serve a
+// stale copy from GitHub Pages' 10-minute cache, so new submissions show up
+// without a hard refresh. Unchanged files come back as a cheap 304.
 export async function fetchJson(url) {
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "no-cache" });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}`);
   }
@@ -63,7 +66,7 @@ export async function fetchJson(url) {
 }
 
 export async function fetchText(url) {
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "no-cache" });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}`);
   }
