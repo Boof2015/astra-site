@@ -47,8 +47,12 @@ test('builds a private fragment URL that preserves Unicode and punctuation metad
 
 test('creates user-initiated search destinations without dropping punctuation', () => {
   const destinations = buildSearchDestinations(payload, 'ca');
+  const byId = Object.fromEntries(destinations.map((entry) => [entry.id, new URL(entry.href)]));
   assert.deepEqual(destinations.map((entry) => entry.id), ['apple', 'spotify', 'youtube', 'bandcamp', 'lastfm']);
-  assert.equal(decodeURIComponent(new URL(destinations[2].href).searchParams.get('q')), 'N!GHT #iwannadance');
+  assert.equal(decodeURIComponent(byId.spotify.pathname), '/search/#iwannadance N!GHT/tracks');
+  assert.equal(byId.bandcamp.pathname, '/search');
+  assert.equal(byId.bandcamp.searchParams.get('q'), '#iwannadance N!GHT');
+  assert.equal(byId.youtube.searchParams.get('q'), '#iwannadance N!GHT');
   assert.equal(destinations[0].href.startsWith('https://music.apple.com/ca/'), true);
 });
 

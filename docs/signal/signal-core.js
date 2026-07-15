@@ -68,31 +68,38 @@ export function formatDuration(durationSec) {
 }
 
 export function buildSearchDestinations(payload, country = 'us') {
-  const query = `${payload.artist} ${payload.title}`.trim();
-  const encodedQuery = encodeURIComponent(query);
+  const query = `${payload.title} ${payload.artist}`.trim();
+  const encodedQuery = encodeURIComponent(query).replace(/[!'()*]/g, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
   const artist = encodeURIComponent(payload.artist);
   const title = encodeURIComponent(payload.title);
   const storefront = /^[a-z]{2}$/i.test(country) ? country.toLowerCase() : 'us';
+  const withQuery = (baseUrl, parameter) => {
+    const url = new URL(baseUrl);
+    url.searchParams.set(parameter, query);
+    return url.toString();
+  };
   return [
     {
       id: 'apple',
       label: 'Apple Music',
-      href: `https://music.apple.com/${storefront}/search?term=${encodedQuery}`,
+      href: withQuery(`https://music.apple.com/${storefront}/search`, 'term'),
     },
     {
       id: 'spotify',
       label: 'Spotify',
-      href: `https://open.spotify.com/search/${encodedQuery}`,
+      href: `https://open.spotify.com/search/${encodedQuery}/tracks`,
     },
     {
       id: 'youtube',
       label: 'YouTube Music',
-      href: `https://music.youtube.com/search?q=${encodedQuery}`,
+      href: withQuery('https://music.youtube.com/search', 'q'),
     },
     {
       id: 'bandcamp',
       label: 'Bandcamp',
-      href: `https://bandcamp.com/search?q=${encodedQuery}`,
+      href: withQuery('https://bandcamp.com/search', 'q'),
     },
     {
       id: 'lastfm',
