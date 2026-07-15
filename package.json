@@ -1,0 +1,9 @@
+{
+  "name": "astra-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:signal": "node --test docs/signal/signal.test.mjs",
+    "check:signal": "node --check docs/signal/app.js && node --check docs/signal/signal-core.js"
+  }
+}

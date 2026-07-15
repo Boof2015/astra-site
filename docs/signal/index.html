@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="description" content="Decode an Astra Signal and find the song on your music service. Images and links are decoded locally in your browser.">
+  <meta property="og:title" content="Astra Signal">
+  <meta property="og:description" content="Decode a Signal locally and choose where to listen.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://astramusic.dev/signal/">
+  <title>Astra Signal</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/astra-logo-layered.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="../assets/astra-logo-layered.svg" alt="">
+      <span>ASTRA SIGNAL</span>
+    </a>
+    <a class="format-link" href="https://github.com/Boof2015/astra-signal" target="_blank" rel="noopener noreferrer">Format &amp; source ↗</a>
+  </header>
+
+  <main>
+    <div class="page-heading">
+      <h1>Decode a Signal</h1>
+      <p>Choose an image or paste a Signal link.</p>
+    </div>
+
+    <section class="signal-stage">
+      <div id="intro">
+        <button class="drop-zone" id="drop-zone" type="button">
+          <span class="mini-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="drop-title">Choose Signal image</span>
+          <span class="drop-copy">PNG, screenshot, or camera photo</span>
+        </button>
+        <input id="image-input" type="file" accept="image/*" hidden>
+      </div>
+
+      <section class="result" id="result" hidden>
+        <div class="signal-frame">
+          <canvas id="signal-canvas" aria-label="Decoded Astra Signal"></canvas>
+        </div>
+        <div class="result-copy">
+          <h2 id="track-title"></h2>
+          <p id="track-artist"></p>
+          <span id="track-duration"></span>
+        </div>
+        <div class="result-actions">
+          <button id="share-button" type="button">Share link</button>
+          <button id="decode-another" type="button">Clear</button>
+        </div>
+
+        <div class="service-grid" id="service-grid"></div>
+
+        <div class="catalog-lookup">
+          <div>
+            <strong>Exact Apple catalog lookup</strong>
+            <p>Only shows recordings matching artist, title, and duration.</p>
+          </div>
+          <button class="lookup-button" id="lookup-button" type="button">Check catalog</button>
+        </div>
+        <div class="lookup-results" id="lookup-results" aria-live="polite"></div>
+      </section>
+    </section>
+
+    <form class="link-form" id="link-form">
+      <label class="sr-only" for="link-input">Astra Signal link</label>
+      <input
+        id="link-input"
+        type="text"
+        inputmode="url"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="astra:signal:v3:…"
+      >
+      <button type="submit">Decode link</button>
+    </form>
+
+    <p class="input-error" id="input-error" role="alert" aria-live="polite"></p>
+    <p class="local-status">
+      <span class="status-dot ready" id="status-dot" aria-hidden="true"></span>
+      <span id="source-status">Waiting for local input</span>
+      <span class="privacy-copy">Images and links are decoded in this browser.</span>
+    </p>
+  </main>
+</body>
+</html>
