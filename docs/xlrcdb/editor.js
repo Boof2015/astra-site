@@ -19,12 +19,17 @@ import {
   normalizeKey,
   resolveArtist
 } from "./data.js";
+import {
+  findHeaderLine,
+  patchHeader,
+  readHeaders,
+  validateLanguageMetadata
+} from "./editor-validation.js";
 
 const SUBMISSION_STORAGE_KEY = "xlrcdb-submission-draft";
-const HEADER_TAG_PATTERN = /^\[([A-Za-z][A-Za-z0-9_-]*):([^\]]*)\]\s*$/u;
 const LEADING_TIMESTAMP = /^\[\d+:\d{2}(?:\.\d{1,3})?\]/u;
 const LENGTH_PATTERN = /^(\d+):([0-5]\d)$/u;
-const DEFAULT_SOURCE = "[ti:]\n[ar:]\n[length:]\n\n[00:00.00]\n";
+const DEFAULT_SOURCE = "[ti:]\n[ar:]\n[length:]\n[lang:]\n[langs:]\n\n[00:00.00]\n";
 
 const ICON_IMPORT = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11 4 7h2.5V2h3v5H12L8 11Z"/><path d="M3 13h10v1H3z"/></svg>';
 const ICON_AUDIO = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 3v7.3A2.5 2.5 0 1 0 7 12V6h4V3H6Z"/></svg>';
@@ -69,6 +74,8 @@ export function createEditor(container, options = {}) {
     artist: root.querySelector("#edArtist"),
     title: root.querySelector("#edTitle"),
     length: root.querySelector("#edLength"),
+    lang: root.querySelector("#edLang"),
+    langs: root.querySelector("#edLangList"),
     statusPill: root.querySelector("#edStatusPill"),
     disambig: root.querySelector("#edDisambig"),
     gutter: root.querySelector("#edGutter"),
@@ -145,7 +152,7 @@ export function createEditor(container, options = {}) {
     el.area.addEventListener("click", updateCurline);
     el.area.addEventListener("keyup", updateCurline);
 
-    for (const field of [el.artist, el.title, el.length]) {
+    for (const field of [el.artist, el.title, el.length, el.lang, el.langs]) {
       field.addEventListener("input", () => {
         const key = field.dataset.header;
         state.source = patchHeader(el.area.value, key, field.value);
@@ -425,7 +432,13 @@ export function createEditor(container, options = {}) {
       warningLines.add(warning.line);
       errors.push({ message: formatPackageWarning(warning), line: warning.line });
     }
-    for (const warning of validateXLRC(parsed).warnings.filter((w) => w.code !== "invalid-length")) {
+    for (const warning of validateXLRC(parsed).warnings.filter((warning) => (
+      warning.code !== "invalid-length" &&
+      !(
+        warning.code === "invalid-lang" &&
+        (typeof parsed.meta.lang !== "string" || parsed.meta.lang.trim() === "")
+      )
+    ))) {
       if (warning.line > 0) warningLines.add(warning.line);
       errors.push({ message: formatPackageWarning(warning), line: warning.line });
     }
@@ -443,6 +456,11 @@ export function createEditor(container, options = {}) {
       const line = findHeaderLine(text, "length");
       errors.push({ message: "Length must use mm:ss with seconds below 60", line });
       if (line) warningLines.add(line);
+    }
+
+    for (const error of validateLanguageMetadata(parsed, text)) {
+      errors.push(error);
+      if (error.line) warningLines.add(error.line);
     }
 
     const filename = `${slugify(artist || "artist")}-${slugify(title || "track")}.xlrc`;
@@ -627,6 +645,8 @@ export function createEditor(container, options = {}) {
     el.artist.value = headers.ar;
     el.title.value = headers.ti;
     el.length.value = headers.length;
+    el.lang.value = headers.lang;
+    el.langs.value = headers.langs;
   }
 
   function persist() {
@@ -682,6 +702,8 @@ function template(mode) {
       <label><span>Artist</span><input id="edArtist" data-header="ar" type="text" placeholder="Artist"></label>
       <label><span>Track</span><input id="edTitle" data-header="ti" type="text" placeholder="Title"></label>
       <label class="submit-length-field"><span>Length</span><input id="edLength" data-header="length" type="text" inputmode="numeric" placeholder="03:42"></label>
+      <label><span>Primary language</span><input id="edLang" data-header="lang" type="text" placeholder="ja" autocapitalize="off" spellcheck="false"></label>
+      <label><span>All languages</span><input id="edLangList" data-header="langs" type="text" placeholder="ja,en" autocapitalize="off" spellcheck="false"></label>
       <div class="submit-status-pill" id="edStatusPill">Checking</div>
     </section>
 
@@ -737,56 +759,11 @@ function template(mode) {
   </article>`;
 }
 
-// Read the three managed headers from the leading header block.
-function readHeaders(source) {
-  const headers = { ar: "", ti: "", length: "" };
-  for (const line of source.replace(/^\uFEFF/u, "").split(/\r?\n/u)) {
-    if (line.trim() === "") continue;
-    const match = line.match(HEADER_TAG_PATTERN);
-    if (!match) break;
-    const key = (match[1] ?? "").toLowerCase();
-    if (key in headers) headers[key] = match[2] ?? "";
-  }
-  return headers;
-}
-
-// Replace (or insert) a single header line in place, leaving body untouched.
-function patchHeader(source, key, value) {
-  const lines = source.replace(/^\uFEFF/u, "").split(/\r?\n/u);
-  let lastHeader = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() === "") {
-      if (lastHeader >= 0) break;
-      continue;
-    }
-    const match = lines[i].match(HEADER_TAG_PATTERN);
-    if (!match) break;
-    lastHeader = i;
-    if ((match[1] ?? "").toLowerCase() === key) {
-      lines[i] = `[${key}:${value}]`;
-      return lines.join("\n");
-    }
-  }
-  lines.splice(lastHeader + 1, 0, `[${key}:${value}]`);
-  return lines.join("\n");
-}
-
 function requireHeader(text, value, key, message, errors, warningLines) {
   if (value) return;
   const line = findHeaderLine(text, key);
   errors.push({ message, line });
   if (line) warningLines.add(line);
-}
-
-function findHeaderLine(text, header) {
-  const lines = text.replace(/^\uFEFF/u, "").split(/\r?\n/u);
-  for (let index = 0; index < lines.length; index += 1) {
-    if (lines[index].trim() === "") continue;
-    const match = lines[index].match(HEADER_TAG_PATTERN);
-    if (!match) break;
-    if ((match[1] ?? "").toLowerCase() === header) return index + 1;
-  }
-  return 0;
 }
 
 function lineAt(text, offset) {

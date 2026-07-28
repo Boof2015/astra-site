@@ -837,7 +837,7 @@ body.submit-mode {
 
 .submit-meta-bar {
   display: grid;
-  grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) minmax(110px, 140px) auto;
+  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(100px, 120px) minmax(110px, 140px) minmax(140px, 180px) auto;
   gap: 0.65rem;
   align-items: end;
   padding: 0.7rem 1rem;
@@ -1581,8 +1581,10 @@ body.submit-mode {
   .submit-divider { min-height: 1px; }
 
   .submit-meta-bar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 120px auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 120px;
   }
+
+  .submit-status-pill { width: 100%; }
 
   .ed-newartist { width: 100%; margin-left: 0; }
 }
