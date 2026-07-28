@@ -9,6 +9,7 @@ import {
   renderLyrics,
   detectedLangs,
   formatTimestamp,
+  mapScrollOffset,
   LANG_LABELS
 } from "./render.js";
 import { createAudioEngine } from "./audio.js";
@@ -260,18 +261,44 @@ export function createEditor(container, options = {}) {
   }
 
   function syncScroll() {
-    el.highlight.scrollTop = el.area.scrollTop;
-    el.highlight.scrollLeft = el.area.scrollLeft;
-    el.gutter.scrollTop = el.area.scrollTop;
+    el.highlight.scrollTop = mapScrollOffset(
+      el.area.scrollTop,
+      el.area.scrollHeight,
+      el.area.clientHeight,
+      el.highlight.scrollHeight,
+      el.highlight.clientHeight
+    );
+    el.highlight.scrollLeft = mapScrollOffset(
+      el.area.scrollLeft,
+      el.area.scrollWidth,
+      el.area.clientWidth,
+      el.highlight.scrollWidth,
+      el.highlight.clientWidth
+    );
+    el.gutter.scrollTop = mapScrollOffset(
+      el.area.scrollTop,
+      el.area.scrollHeight,
+      el.area.clientHeight,
+      el.gutter.scrollHeight,
+      el.gutter.clientHeight
+    );
     updateCurline();
     positionActiveBand();
   }
 
   function updateCurline() {
     const caretLine = lineAt(el.area.value, el.area.selectionStart);
-    const lh = parseFloat(getComputedStyle(el.highlight).lineHeight) || 21;
-    el.curline.style.top = `${12 + caretLine * lh - el.area.scrollTop}px`;
-    el.curline.style.display = "block";
+    positionRowBand(el.curline, caretLine + 1);
+  }
+
+  function positionRowBand(band, lineNumber) {
+    const row = lineNumber ? el.highlight.children[lineNumber - 1] : null;
+    if (!row) {
+      band.style.display = "none";
+      return;
+    }
+    band.style.top = `${row.offsetTop - el.highlight.scrollTop}px`;
+    band.style.display = "block";
   }
 
   // ─────────────────────────── timing authoring ───────────────────────────
@@ -331,8 +358,8 @@ export function createEditor(container, options = {}) {
     state.output = output;
     state.parsed = output.parsed;
 
-    buildHighlight(el.highlight, output.text, output.warningLines);
-    renderGutter(output.text, output.warningLines);
+    buildHighlight(el.highlight, el.area.value, output.warningLines);
+    renderGutter(el.area.value, output.warningLines);
     syncScroll();
 
     state.lineEls = renderLyrics(el.preview, output.parsed, "", { showAll: true });
@@ -513,13 +540,7 @@ export function createEditor(container, options = {}) {
   }
 
   function positionActiveBand() {
-    if (!state.activeSrcLine) {
-      el.activeline.style.display = "none";
-      return;
-    }
-    const lh = parseFloat(getComputedStyle(el.highlight).lineHeight) || 21;
-    el.activeline.style.top = `${12 + (state.activeSrcLine - 1) * lh - el.area.scrollTop}px`;
-    el.activeline.style.display = "block";
+    positionRowBand(el.activeline, state.activeSrcLine);
   }
 
   // ─────────────────────────── artist disambiguation ───────────────────────────
@@ -731,7 +752,7 @@ function template(mode) {
         <div class="playhead" id="edPlayhead"></div>
         <div class="scrub-tip" id="edScrubTip"></div>
       </div></div>
-      <div class="time" id="edTime">0:00 / 0:00</div>
+      <div class="time" id="edTime">00:00.00 / 00:00.00</div>
       <label class="ed-speed" title="Playback speed (slow down to time lyrics)">
         <input type="range" id="edSpeed" min="0.1" max="1" step="0.05" value="1" aria-label="Playback speed">
         <span id="edSpeedVal">1x</span>

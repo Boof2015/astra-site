@@ -5,6 +5,8 @@
 // els:   { audio, scrub, wave, markers, playhead, scrubTip, playBtn, time }
 // hooks: { getLines(): line[], getOffset(): ms, onActiveLine(idx), onDuration(sec), onEmbeddedLyrics(text, name) }
 
+import { formatPlaybackTime } from "./render.js";
+
 export function createAudioEngine(els, hooks) {
   const { audio, scrub, wave, markers, playhead, scrubTip, playBtn, time } = els;
   const waveCtx = wave.getContext("2d");
@@ -21,12 +23,6 @@ export function createAudioEngine(els, hooks) {
   let rafId = 0;
   let scrubbing = false;
   const waveColors = { accent: "#38bdf8", muted: "#404040" };
-
-  function fmt(sec) {
-    if (!isFinite(sec) || sec < 0) sec = 0;
-    sec = Math.floor(sec);
-    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
-  }
 
   function ensureGraph() {
     if (audioCtx) return;
@@ -165,7 +161,7 @@ export function createAudioEngine(els, hooks) {
     const d = audio.duration || 0;
     const cur = audio.currentTime || 0;
     playhead.style.left = `${d ? (cur / d) * 100 : 0}%`;
-    time.textContent = `${fmt(cur)} / ${fmt(d)}`;
+    time.textContent = `${formatPlaybackTime(cur)} / ${formatPlaybackTime(d)}`;
     drawWave();
   }
   function renderMarkers() {
@@ -211,7 +207,7 @@ export function createAudioEngine(els, hooks) {
     const idx = resolveActive(ratio * d * 1000);
     const line = idx >= 0 ? lines[idx] : lines[0];
     const label = !line || line.isEmpty ? "instrumental" : line.text;
-    scrubTip.textContent = `${fmt((line ? line.timestamp : 0) / 1000)}  ·  ${label.length > 40 ? `${label.slice(0, 39)}…` : label}`;
+    scrubTip.textContent = `${formatPlaybackTime((line ? line.timestamp : 0) / 1000)}  ·  ${label.length > 40 ? `${label.slice(0, 39)}…` : label}`;
     scrubTip.style.left = `${ratio * 100}%`;
     scrubTip.style.display = "block";
   }

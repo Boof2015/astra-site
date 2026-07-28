@@ -1117,6 +1117,13 @@ body.submit-mode {
 .t-furi { color: var(--green); }
 .t-tr { color: var(--violet); }
 
+.hl-line {
+  display: block;
+  height: var(--ed-line);
+  line-height: var(--ed-line);
+  white-space: pre;
+}
+
 .hl-line.err {
   text-decoration: underline solid var(--red);
   text-decoration-thickness: 2px;

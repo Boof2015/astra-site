@@ -16,10 +16,28 @@ export const LANG_LABELS = {
   fr: "Français"
 };
 
-export function fmt(sec) {
-  if (!isFinite(sec) || sec < 0) sec = 0;
-  sec = Math.floor(sec);
-  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+export function formatPlaybackTime(sec) {
+  let safe = Number(sec);
+  if (!Number.isFinite(safe) || safe < 0) safe = 0;
+  const totalCentis = Math.floor(safe * 100);
+  const minutes = Math.floor(totalCentis / 6000);
+  const seconds = Math.floor((totalCentis % 6000) / 100);
+  const centis = totalCentis % 100;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(centis).padStart(2, "0")}`;
+}
+
+export function mapScrollOffset(
+  sourceOffset,
+  sourceScrollSize,
+  sourceClientSize,
+  targetScrollSize,
+  targetClientSize
+) {
+  const sourceRange = Math.max(0, sourceScrollSize - sourceClientSize);
+  const targetRange = Math.max(0, targetScrollSize - targetClientSize);
+  if (!sourceRange || !targetRange) return 0;
+  const ratio = Math.min(1, Math.max(0, sourceOffset / sourceRange));
+  return ratio * targetRange;
 }
 
 // Deterministic colour per voice label (stable across renders).
@@ -89,14 +107,13 @@ export function colorizeLine(raw) {
 
 // Paint the highlight overlay that sits behind the textarea caret.
 export function buildHighlight(highlightEl, text, warnLines) {
-  const parts = text.split("\n");
+  const parts = text.split(/\r?\n/u);
   highlightEl.textContent = "";
   for (let i = 0; i < parts.length; i++) {
     const lineSpan = document.createElement("span");
     lineSpan.className = warnLines.has(i + 1) ? "hl-line err" : "hl-line";
     lineSpan.appendChild(colorizeLine(parts[i]));
     highlightEl.appendChild(lineSpan);
-    if (i < parts.length - 1) highlightEl.appendChild(document.createTextNode("\n"));
   }
 }
 
