@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Astra - Audiophile Music Player</title>
 <link rel="icon" type="image/svg+xml" href="assets/astra-logo-layered.svg">
-<meta name="description" content="A desktop music player for people who still have a music library. Gapless playback, native C++ visualizers, parametric EQ, and a UI that adapts to your music.">
-<meta name="theme-color" content="#0a0a0f">
+<meta name="description" content="A desktop music player for people who still have a music library. Bit-perfect playback, native C++ visualizers, a 20-band parametric EQ, spatial audio, and synchronized multi-room sound.">
+<meta name="theme-color" content="#0f0f0f">
 
 <!-- Open Graph -->
 <meta property="og:title" content="Astra - Audiophile Music Player">
 <meta property="og:description" content="A desktop music player for people who still have a music library.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://boof2015.github.io/astra/">
+<meta property="og:url" content="https://astramusic.dev/">
 
 <!-- Fonts: Inter (UI) + JetBrains Mono (data/labels) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,25 +21,37 @@
 
 <style>
 :root {
-  --bg-primary: #06060b;
-  --bg-secondary: #0c0c14;
-  --bg-card: #0e0e18;
-  --bg-card-hover: #12121e;
-  --border: #1a1a2e;
-  --border-bright: #252540;
-  --text-primary: #e8e8f0;
-  --text-secondary: #8888a8;
-  --text-muted: #55556e;
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #171717;
+  --bg-card: #171717;
+  --bg-card-hover: #202020;
+  --border: #2a2a2a;
+  --border-bright: #3d3d3d;
+  --text-primary: #f0f0f0;
+  --text-secondary: #9a9a9a;
+  --text-muted: #6a6a6a;
   --accent: #38bdf8;
   --accent-dim: #2196cc;
   --accent-glow: rgba(56, 189, 248, 0.12);
   --accent-glow-strong: rgba(56, 189, 248, 0.25);
   --green: #4ade80;
   --green-dim: rgba(74, 222, 128, 0.1);
+  --amber: #fb923c;
+  --amber-dim: rgba(251, 146, 60, 0.1);
   --mono: 'JetBrains Mono', 'SF Mono', monospace;
   --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --radius: 6px;
+  --radius: 8px;
   --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Spacing scale */
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
+  --space-5: 3rem;
+  --space-6: 4rem;
+  --space-7: 6rem;
+  --section-y: var(--space-7);
 }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -64,32 +76,19 @@ img { max-width: 100%; display: block; }
 
 ::selection { background: var(--accent); color: var(--bg-primary); }
 
-/* Star field */
-#starfield {
+/* Frequency particle field */
+#particles {
   position: fixed;
   top: 0; left: 0;
   width: 100%; height: 100%;
   z-index: 0;
   pointer-events: none;
-}
-
-.topo-grid {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.025;
-  background-image:
-    linear-gradient(var(--accent) 1px, transparent 1px),
-    linear-gradient(90deg, var(--accent) 1px, transparent 1px);
-  background-size: 60px 60px;
 }
 
 .container {
   max-width: 1300px;
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0 var(--space-4);
   position: relative;
   z-index: 1;
 }
@@ -103,7 +102,7 @@ nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(6, 6, 11, 0.82);
+  background: rgba(15, 15, 15, 0.82);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
@@ -119,19 +118,6 @@ nav {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-}
-
-.nav-logo .dot {
-  width: 7px; height: 7px;
-  background: var(--accent);
-  border-radius: 50%;
-  box-shadow: 0 0 8px var(--accent);
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
 }
 
 .nav-links {
@@ -188,19 +174,21 @@ nav {
   display: block;
 }
 
-.nav-menu-btn.active span:nth-child(1) {
-  transform: rotate(45deg) translate(8px, 8px);
+.nav-menu-btn.active span:nth-child(1) { transform: rotate(45deg) translate(8px, 8px); }
+.nav-menu-btn.active span:nth-child(2) { opacity: 0; }
+.nav-menu-btn.active span:nth-child(3) { transform: rotate(-45deg) translate(8px, -8px); }
+
+/* ── Section scaffolding ── */
+/* Vertical only. A `padding: y 0` shorthand here would clobber the
+   horizontal padding of .container on every `section.container`. */
+.section {
+  padding-top: var(--section-y);
+  padding-bottom: var(--section-y);
 }
 
-.nav-menu-btn.active span:nth-child(2) {
-  opacity: 0;
-}
+/* Major sections carry more weight than supporting ones */
+.section--major { --section-y: 7rem; }
 
-.nav-menu-btn.active span:nth-child(3) {
-  transform: rotate(-45deg) translate(8px, -8px);
-}
-
-/* ── Section labels ── */
 .section-label {
   font-family: var(--mono);
   font-size: 0.65rem;
@@ -208,12 +196,81 @@ nav {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-2);
 }
 
 .section-label span { color: var(--accent-dim); }
 
-/* ── HERO (split layout on large screens) ── */
+.section-head { margin-bottom: var(--space-6); }
+
+.section-head h2 {
+  font-family: var(--sans);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.section--major .section-head h2 { font-size: clamp(2.3rem, 5vw, 3.6rem); }
+
+.section-head p {
+  color: var(--text-secondary);
+  font-weight: 400;
+  max-width: 560px;
+  font-size: 0.95rem;
+}
+
+.section--major .section-head p { font-size: 1.02rem; max-width: 620px; }
+
+.sub-head {
+  font-family: var(--sans);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.sub-copy {
+  color: var(--text-secondary);
+  font-weight: 400;
+  max-width: 620px;
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+/* ── Status chips ── */
+.status-tag {
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--amber);
+  background: var(--amber-dim);
+  padding: 0.2rem 0.55rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.status-tag.opt {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.status-tag.info {
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+/* ── HERO ── */
 .hero {
   min-height: 80vh;
   display: grid;
@@ -225,7 +282,6 @@ nav {
   margin: 0 auto;
 }
 
-/* Stacked (mobile/tablet): centered text, screenshot below */
 .hero-text {
   text-align: center;
   display: flex;
@@ -242,7 +298,6 @@ nav {
   z-index: 2;
 }
 
-/* Split (large screens): text left, screenshot right */
 @media (min-width: 1100px) {
   .hero {
     grid-template-columns: 0.8fr 1.2fr;
@@ -250,20 +305,11 @@ nav {
     padding: 0 3rem;
     min-height: 80vh;
   }
-  .hero-text {
-    text-align: left;
-    align-items: flex-start;
-  }
-  .hero-screenshot {
-    margin-top: 0;
-    align-self: center;
-  }
-  .hero-actions {
-    justify-content: flex-start;
-  }
+  .hero-text { text-align: left; align-items: flex-start; }
+  .hero-screenshot { margin-top: 0; align-self: center; }
+  .hero-actions { justify-content: flex-start; }
 }
 
-/* Even wider screens: let it stretch further */
 @media (min-width: 1500px) {
   .hero {
     max-width: 1600px;
@@ -274,11 +320,7 @@ nav {
 }
 
 @media (min-width: 1800px) {
-  .hero {
-    max-width: 1800px;
-    gap: 5rem;
-    padding: 0 5rem;
-  }
+  .hero { max-width: 1800px; gap: 5rem; padding: 0 5rem; }
 }
 
 .hero::after {
@@ -324,32 +366,12 @@ nav {
 }
 
 @media (min-width: 1100px) {
-  .hero h1 {
-    font-size: clamp(4rem, 5.5vw, 6rem);
-  }
-  .hero-sub {
-    font-size: 1.1rem;
-    margin-bottom: 1.8rem;
-  }
-  .hero-desc {
-    font-size: 1.05rem;
-    max-width: 480px;
-    line-height: 1.75;
-    margin-bottom: 2.8rem;
-  }
-  .hero-badge {
-    font-size: 0.72rem;
-    padding: 0.5rem 1.3rem;
-    margin-bottom: 2.2rem;
-  }
-  .btn-primary {
-    font-size: 0.82rem;
-    padding: 0.9rem 2rem;
-  }
-  .btn-outline {
-    font-size: 0.88rem;
-    padding: 0.9rem 2rem;
-  }
+  .hero h1 { font-size: clamp(4rem, 5.5vw, 6rem); }
+  .hero-sub { font-size: 1.1rem; margin-bottom: 1.8rem; }
+  .hero-desc { font-size: 1.05rem; max-width: 480px; line-height: 1.75; margin-bottom: 2.8rem; }
+  .hero-badge { font-size: 0.72rem; padding: 0.5rem 1.3rem; margin-bottom: 2.2rem; }
+  .btn-primary { font-size: 0.82rem; padding: 0.9rem 2rem; }
+  .btn-outline { font-size: 0.88rem; padding: 0.9rem 2rem; }
 }
 
 .hero-sub {
@@ -401,16 +423,8 @@ nav {
   transform: translateY(-1px);
 }
 
-.dl-split {
-  position: relative;
-  display: inline-flex;
-  align-items: stretch;
-}
-
-.dl-split-main {
-  border-radius: var(--radius) 0 0 var(--radius);
-  padding-right: 1.2rem;
-}
+.dl-split { position: relative; display: inline-flex; align-items: stretch; }
+.dl-split-main { border-radius: var(--radius) 0 0 var(--radius); padding-right: 1.2rem; }
 
 .dl-split-chevron {
   padding: 0 0.7rem;
@@ -428,7 +442,7 @@ nav {
   top: calc(100% + 0.5rem);
   left: 0;
   min-width: 100%;
-  background: #0c0c14;
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -449,10 +463,7 @@ nav {
   transition: background 0.15s, color 0.15s;
 }
 
-.dl-dropdown a:hover {
-  background: rgba(255,255,255,0.04);
-  color: var(--text-primary);
-}
+.dl-dropdown a:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
 
 .dl-dropdown .dl-sep {
   font-size: 0.58rem;
@@ -489,112 +500,30 @@ nav {
   background: rgba(255,255,255,0.02);
 }
 
-@media (min-width: 1100px) {
-  .hero-scroll { display: none; }
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
 }
 
-@keyframes float {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(6px); }
-}
+.btn-row .btn-outline { font-size: 0.78rem; }
 
-/* ── SHOWCASE FRAME (reused in hero + fullscreen section) ── */
-.showcase { padding: 2rem 0 6rem; }
-
+/* ── Media frames ── */
 .showcase-frame {
   position: relative;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
   background: var(--bg-secondary);
-  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(56, 189, 248, 0.05);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5);
 }
 
-.showcase-frame::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 36px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  z-index: 2;
-}
+.showcase-frame img,
+.showcase-frame video { width: 100%; display: block; }
 
-.showcase-frame::after {
-  content: '● ● ●';
-  position: absolute;
-  top: 10px; left: 14px;
-  font-size: 9px;
-  letter-spacing: 4px;
-  color: var(--text-muted);
-  z-index: 3;
-  opacity: 0.4;
-}
-
-.showcase-frame img {
-  width: 100%;
-  display: block;
-  margin-top: 36px;
-}
-
-/* Generic image placeholder */
-.img-placeholder {
-  width: 100%;
-  aspect-ratio: 16/9;
-  background: linear-gradient(145deg, #0d0d1a 0%, #111125 40%, #0a0a18 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.7rem;
-  border: 1px dashed var(--border-bright);
-  border-radius: 8px;
-}
-
-.img-placeholder .ph-label {
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  color: var(--text-muted);
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}
-
-.img-placeholder .ph-hint {
-  font-family: var(--sans);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  opacity: 0.4;
-}
-
-.img-placeholder svg { opacity: 0.12; }
-
-.showcase-placeholder {
-  margin-top: 36px;
-  border: none;
-  border-radius: 0;
-}
-
-/* ── FEATURES ── */
-.features { padding: 6rem 0; }
-
-.features-header { margin-bottom: 4rem; }
-
-.features-header h2 {
-  font-family: var(--sans);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  margin-bottom: 0.5rem;
-}
-
-.features-header p {
-  color: var(--text-secondary);
-  font-weight: 400;
-  max-width: 480px;
-  font-size: 0.95rem;
-}
-
-.features-grid {
+/* ── Card grids ── */
+.card-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
@@ -640,26 +569,87 @@ nav {
   line-height: 1.6;
 }
 
-/* ── VISUALIZERS ── */
-.visualizers { padding: 6rem 0; }
-
-.viz-header { margin-bottom: 3rem; }
-
-.viz-header h2 {
-  font-family: var(--sans);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  margin-bottom: 0.5rem;
+/* ── Split (text + media) ── */
+.split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  align-items: center;
 }
 
-.viz-header p {
+@media (min-width: 900px) {
+  .split { grid-template-columns: 1fr 1fr; gap: var(--space-6); }
+  .split--reverse .split-media { order: -1; }
+}
+
+.split-text h3 { margin-bottom: var(--space-2); }
+
+.split-text > p {
   color: var(--text-secondary);
   font-weight: 400;
-  max-width: 500px;
-  font-size: 0.95rem;
+  line-height: 1.7;
+  margin-bottom: var(--space-3);
+  font-size: 0.92rem;
 }
 
+.split-media {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.split-media img { width: 100%; display: block; }
+
+/* ── Arrow list ── */
+.arrow-list { list-style: none; }
+
+.arrow-list li {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.arrow-list li::before {
+  content: '→';
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+/* ── Chip row (scope names, formats) ── */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: var(--space-3);
+}
+
+.chip {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+}
+
+/* ── Showcase row (sub-block within a section) ── */
+.showcase-row { margin-top: var(--space-6); }
+.showcase-row .sub-head { margin-bottom: var(--space-1); }
+.showcase-row .sub-copy { margin-bottom: var(--space-4); }
+
+/* ── SCOPES ── */
 .viz-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -687,15 +677,7 @@ nav {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(145deg, #0a0a16, #0e0e1c);
-}
-
-.viz-preview .img-placeholder {
-  aspect-ratio: unset;
-  width: 100%;
-  height: 100%;
-  border: none;
-  border-radius: 0;
+  background: var(--bg-secondary);
 }
 
 .viz-preview img { width: 100%; height: 100%; object-fit: cover; }
@@ -723,42 +705,7 @@ nav {
   line-height: 1.5;
 }
 
-/* Rack customization sub-section */
-.rack-showcase {
-  margin-top: 3.5rem;
-}
-
-.rack-text {
-  margin-bottom: 2rem;
-}
-
-.rack-text h3 {
-  font-family: var(--sans);
-  font-size: 1.3rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 0.5rem;
-}
-
-.rack-text p {
-  color: var(--text-secondary);
-  font-weight: 400;
-  max-width: 560px;
-  font-size: 0.92rem;
-  line-height: 1.7;
-}
-
 /* ── SPECS ── */
-.specs { padding: 6rem 0; }
-
-.specs h2 {
-  font-family: var(--sans);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  margin-bottom: 3rem;
-}
-
 .specs-table {
   width: 100%;
   border: 1px solid var(--border);
@@ -817,68 +764,6 @@ nav {
 .status-dot.native { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .status-dot.cpp { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 
-/* ── EQ ── */
-.eq-section { padding: 6rem 0; }
-
-.eq-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  align-items: center;
-}
-
-.eq-text h2 {
-  font-family: var(--sans);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  margin-bottom: 1rem;
-}
-
-.eq-text p {
-  color: var(--text-secondary);
-  font-weight: 400;
-  line-height: 1.7;
-  margin-bottom: 1.5rem;
-  font-size: 0.92rem;
-}
-
-.eq-features { list-style: none; }
-
-.eq-features li {
-  font-family: var(--sans);
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.eq-features li::before {
-  content: '→';
-  color: var(--accent);
-  font-family: var(--mono);
-  font-size: 0.8rem;
-}
-
-.eq-screenshot {
-  position: relative;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--bg-card);
-}
-
-.eq-screenshot img { width: 100%; display: block; }
-
-.eq-screenshot .img-placeholder {
-  aspect-ratio: 4/3;
-  border: none;
-  border-radius: 0;
-}
-
 /* ── API ── */
 .api-content {
   display: grid;
@@ -888,15 +773,10 @@ nav {
 }
 
 @media (min-width: 900px) {
-  .api-content {
-    grid-template-columns: 1fr 1fr;
-    gap: 3.5rem;
-  }
+  .api-content { grid-template-columns: 1fr 1fr; gap: 3.5rem; }
 }
 
-.api-features {
-  list-style: none;
-}
+.api-features { list-style: none; }
 
 .api-features li {
   font-family: var(--sans);
@@ -921,82 +801,20 @@ nav {
   flex-shrink: 0;
 }
 
-.api-tag.read {
-  background: var(--accent-glow);
-  color: var(--accent);
-}
+.api-tag.read { background: var(--accent-glow); color: var(--accent); }
+.api-tag.write { background: var(--green-dim); color: var(--green); }
+.api-tag.opt { background: var(--amber-dim); color: var(--amber); }
 
-.api-tag.write {
-  background: rgba(74, 222, 128, 0.1);
-  color: var(--green);
-}
+.api-code { width: 100%; }
+.api-code .code-block { max-width: none; }
 
-.api-tag.opt {
-  background: rgba(251, 146, 60, 0.1);
-  color: #fb923c;
-}
-
-.api-code {
-  width: 100%;
-}
-
-.api-code .code-block {
-  max-width: none;
-}
-
-.code-body .str { color: #fb923c; }
+.code-body .str { color: var(--amber); }
 .code-body .num { color: var(--accent); }
 
-/* ── MINI PLAYER ── */
-.mini-player-content {
+/* ── Marker list (integrations, everything else) ── */
+.marker-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 2.5rem;
-  align-items: center;
-}
-
-@media (min-width: 900px) {
-  .mini-player-content {
-    grid-template-columns: 1fr 1fr;
-    gap: 4rem;
-  }
-}
-
-.mini-player-screenshot {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--bg-card);
-}
-
-.mini-player-screenshot img {
-  width: 100%;
-  display: block;
-}
-
-/* ── INTEGRATIONS ── */
-.integrations { padding: 6rem 0; }
-
-.integrations-header { margin-bottom: 3rem; }
-
-.integrations-header h2 {
-  font-family: var(--sans);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  margin-bottom: 0.5rem;
-}
-
-.integrations-header p {
-  color: var(--text-secondary);
-  font-weight: 400;
-  max-width: 520px;
-  font-size: 0.95rem;
-}
-
-.integrations-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1px;
   background: var(--border);
   border: 1px solid var(--border);
@@ -1004,15 +822,15 @@ nav {
   overflow: hidden;
 }
 
-.integration-item {
+.marker-item {
   background: var(--bg-card);
   padding: 1.8rem;
   transition: background var(--transition);
 }
 
-.integration-item:hover { background: var(--bg-card-hover); }
+.marker-item:hover { background: var(--bg-card-hover); }
 
-.integration-item h3 {
+.marker-item h3 {
   font-family: var(--sans);
   font-size: 0.95rem;
   font-weight: 600;
@@ -1020,16 +838,18 @@ nav {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.integration-item h3::before {
+.marker-item h3::before {
   content: '→';
   color: var(--accent);
   font-family: var(--mono);
   font-size: 0.85rem;
+  flex-shrink: 0;
 }
 
-.integration-item p {
+.marker-item p {
   font-size: 0.82rem;
   font-weight: 400;
   color: var(--text-secondary);
@@ -1037,88 +857,33 @@ nav {
   padding-left: 1.35rem;
 }
 
-.prism-showcase {
-  margin-top: 3.5rem;
+/* ── Compact list (everything else) ── */
+.compact-list {
+  list-style: none;
+  columns: 3;
+  column-gap: var(--space-5);
 }
 
-.prism-text {
-  margin-bottom: 2rem;
-}
-
-.prism-text h3 {
-  font-family: var(--sans);
-  font-size: 1.3rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-
-.prism-text p {
+.compact-list li {
+  break-inside: avoid;
+  font-size: 0.83rem;
   color: var(--text-secondary);
-  font-weight: 400;
-  max-width: 560px;
-  font-size: 0.92rem;
-  line-height: 1.7;
-}
-
-.coming-soon-tag {
-  font-family: var(--mono);
-  font-size: 0.5rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #fb923c;
-  background: rgba(251, 146, 60, 0.1);
-  padding: 0.15rem 0.5rem;
-  border-radius: 3px;
-}
-
-/* ── XLRC mini preview (source -> rendered) ── */
-.xlrc-preview {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-@media (min-width: 760px) { .xlrc-preview { grid-template-columns: 1fr 1fr; } }
-.xlrc-pane {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-card);
-  overflow: hidden;
-}
-.xlrc-pane-head {
-  padding: 0.6rem 1rem;
-  background: rgba(255, 255, 255, 0.015);
+  padding: 0.55rem 0;
   border-bottom: 1px solid var(--border);
-  font-family: var(--mono);
-  font-size: 0.58rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
-.xlrc-src {
+
+.compact-list li::before {
+  content: '·';
+  color: var(--accent);
   font-family: var(--mono);
-  font-size: 0.78rem;
-  line-height: 1.9;
-  color: var(--text-secondary);
-  padding: 1rem 1.1rem;
-  overflow-x: auto;
+  flex-shrink: 0;
 }
-.xlrc-src .t-time { color: var(--accent); }
-.xlrc-src .t-tr { color: var(--accent-dim); }
-.xlrc-rendered { padding: 1rem 1.2rem; }
-.xr-line { padding: 0.45rem 0; }
-.xr-line + .xr-line { border-top: 1px solid var(--border); }
-.xr-text { font-size: 1.15rem; color: var(--text-primary); line-height: 2; }
-.xr-text ruby rt { font-family: var(--sans); font-size: 0.42em; color: var(--accent); font-weight: 500; }
-.xr-tr { font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.1rem; }
 
 /* ── DOWNLOAD ── */
-.download-section { padding: 6rem 0; }
-
 .download-content {
   text-align: center;
   max-width: 600px;
@@ -1136,7 +901,7 @@ nav {
 .download-content > p {
   color: var(--text-secondary);
   font-weight: 400;
-  margin-bottom: 3rem;
+  margin-bottom: var(--space-5);
   font-size: 0.95rem;
 }
 
@@ -1197,6 +962,7 @@ nav {
 
 .dl-aur a:hover { color: var(--accent); }
 .dl-aur strong { color: var(--text-secondary); }
+
 #winget-confirm {
   font-family: var(--mono);
   font-size: 0.68rem;
@@ -1207,7 +973,7 @@ nav {
 }
 
 /* ── BUILD ── */
-.build-section { padding: 4rem 0 6rem; }
+.build-section { padding: var(--space-6) 0 var(--space-7); }
 
 .build-section h3 {
   font-family: var(--mono);
@@ -1238,11 +1004,7 @@ nav {
   border-bottom: 1px solid var(--border);
 }
 
-.code-header span {
-  font-family: var(--mono);
-  font-size: 0.65rem;
-  color: var(--text-muted);
-}
+.code-header span { font-family: var(--mono); font-size: 0.65rem; color: var(--text-muted); }
 
 .code-header .lang {
   font-size: 0.58rem;
@@ -1286,17 +1048,14 @@ footer {
   color: var(--text-muted);
 }
 
-.footer-left a {
-  color: var(--text-secondary);
-  transition: color var(--transition);
-}
-
+.footer-left a { color: var(--text-secondary); transition: color var(--transition); }
 .footer-left a:hover { color: var(--text-primary); }
 
 .footer-links {
   display: flex;
   gap: 1.5rem;
   list-style: none;
+  flex-wrap: wrap;
 }
 
 .footer-links a {
@@ -1309,52 +1068,313 @@ footer {
 
 .footer-links a:hover { color: var(--text-primary); }
 
-.footer-status {
+/* The act split: the page's structural hinge, so it runs louder */
+.act-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 1000px;
+  margin: var(--space-5) auto;
+  padding: 0 var(--space-4);
+  position: relative;
+  z-index: 1;
+}
+
+.act-divider::before,
+.act-divider::after {
+  content: '';
+  flex: 1;
+  height: 40px;
+  background-repeat: repeat-x;
+  background-position: center;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='40' viewBox='0 0 80 40'%3E%3Cpath d='M0 20 Q 10 3 20 20 T 40 20 T 60 20 T 80 20' fill='none' stroke='%2338bdf8' stroke-opacity='0.4' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+.act-divider::before {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000);
+  mask-image: linear-gradient(90deg, transparent, #000);
+}
+
+.act-divider::after {
+  -webkit-mask-image: linear-gradient(270deg, transparent, #000);
+  mask-image: linear-gradient(270deg, transparent, #000);
+}
+
+.act-divider-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.act-divider-label span { color: var(--accent-dim); }
+
+/* ══ App UI facsimiles ══
+   Rebuilt in markup rather than screenshotted: crisp at any DPI, reflows on
+   small screens, and stays on the site's tokens. Numbers are real. */
+.ui {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.ui-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.ui-eyebrow {
   font-family: var(--mono);
   font-size: 0.6rem;
-  color: var(--text-muted);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  text-align: center;
-  padding-top: 2rem;
-  margin-top: 2rem;
-  border-top: 1px solid var(--border);
+  color: var(--text-muted);
 }
 
-.footer-status .online-dot {
-  display: inline-block;
-  width: 5px; height: 5px;
-  background: var(--green);
+.ui-btns { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.ui-btn {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  white-space: nowrap;
+}
+
+.ui-btn.mono { font-family: var(--mono); font-size: 0.66rem; }
+.ui-btn.is-active { color: var(--accent); border-color: rgba(56,189,248,0.45); background: var(--accent-glow); }
+.ui-btn.is-dim { color: var(--text-muted); border-color: var(--border); }
+
+/* Audio pipeline shelf */
+.pipe { display: flex; align-items: center; justify-content: safe center; gap: 0.5rem; padding: 1.1rem; overflow-x: auto; }
+
+.pipe-node {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  background: var(--bg-secondary);
+  flex: 0 0 auto;
+}
+
+.pipe-label {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pipe-val { font-family: var(--mono); font-size: 0.76rem; color: var(--text-primary); white-space: nowrap; }
+.pipe-arrow { color: var(--text-muted); flex: 0 0 auto; font-size: 0.8rem; }
+
+/* Parallax speakers */
+.spk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.spk-id { display: flex; gap: 0.7rem; align-items: flex-start; min-width: 0; flex: 1 1 260px; }
+
+.spk-dot {
+  width: 8px; height: 8px;
   border-radius: 50%;
-  box-shadow: 0 0 6px var(--green);
-  margin-right: 0.4rem;
-  vertical-align: middle;
+  background: var(--text-muted);
+  margin-top: 0.5rem;
+  flex: 0 0 auto;
 }
 
-/* Divider */
-.section-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
-  margin: 0 auto;
-  max-width: 600px;
+.spk-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.spk-id > span:last-child { display: block; min-width: 0; }
+.spk-name { display: block; font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+.spk-state { display: block; font-size: 0.78rem; color: var(--text-secondary); }
+.spk-meta { display: block; font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+/* Virtual speaker room */
+.room-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
-/* Responsive */
-/* Responsive */
+.room-seg { display: inline-flex; border: 1px solid var(--border-bright); border-radius: 6px; overflow: hidden; }
+
+.room-seg span {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  padding: 0.28rem 0.7rem;
+  color: var(--text-secondary);
+}
+
+.room-seg span.on { background: var(--accent-glow); color: var(--accent); }
+.room-note { margin-left: auto; font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); }
+
+.room-stage {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  margin: 1.4rem auto;
+  aspect-ratio: 1 / 1;
+}
+
+.room-ring {
+  position: absolute;
+  left: 50%; top: 46%;
+  width: 64%; height: 62%;
+  transform: translate(-50%, -50%);
+  border: 1px dashed var(--border-bright);
+  border-radius: 50%;
+}
+
+.room-front {
+  position: absolute;
+  left: 50%; top: 0;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.24em;
+  color: var(--text-muted);
+}
+
+.spkr {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spkr.lfe { width: auto; height: auto; border-radius: 100px; padding: 0.3rem 0.9rem; }
+
+.spkr-h::after {
+  content: '↑45°';
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.5rem;
+  color: var(--text-muted);
+}
+
+.room-listener {
+  position: absolute;
+  left: 50%; top: 46%;
+  transform: translate(-50%, -50%);
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border-bright);
+}
+
+/* Listening stats */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.stat-tile { background: var(--bg-card); padding: 1.1rem; }
+
+.stat-tile .k {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.3rem;
+}
+
+.stat-tile .v {
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.chart-wrap { padding: 1.1rem; }
+
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.chart-title { font-size: 0.88rem; font-weight: 600; color: var(--text-primary); }
+.chart-hint { font-size: 0.7rem; color: var(--text-muted); }
+.chart-scroll { overflow-x: auto; }
+.chart { min-width: 560px; }
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 150px;
+}
+
+.bar { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; background: rgba(255,255,255,0.022); border-radius: 3px; }
+
+.bar i {
+  display: block;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+  min-height: 2px;
+}
+
+.bar-axis { display: flex; gap: 2px; margin-top: 0.5rem; }
+
+.bar-axis span {
+  flex: 1 1 0;
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ── Responsive ── */
 @media (max-width: 900px) {
   .nav-download { padding: 0.45rem 1rem; font-size: 0.65rem !important; }
-  .features-grid { grid-template-columns: 1fr 1fr; }
-  .features-header h2 { font-size: 2rem; }
+  .card-grid { grid-template-columns: 1fr 1fr; }
   .viz-grid { grid-template-columns: 1fr; gap: 1rem; }
   .viz-card { border-radius: 8px; }
   .viz-info { padding: 1.1rem 1.3rem; }
   .viz-preview { height: 150px; }
-  .eq-content { grid-template-columns: 1fr; gap: 2rem; }
-  .eq-text h2 { font-size: 1.8rem; }
-  .eq-features li { font-size: 0.8rem; padding: 0.4rem 0; }
-  .mini-player-content { grid-template-columns: 1fr; gap: 2rem; }
-  .integrations-header h2 { font-size: 1.8rem; }
-  .integrations-grid { grid-template-columns: 1fr; }
+  .split { grid-template-columns: 1fr; gap: 2rem; }
+  .arrow-list li { font-size: 0.8rem; padding: 0.4rem 0; }
+  .marker-grid { grid-template-columns: 1fr; }
+  .compact-list { columns: 2; }
   .download-grid { grid-template-columns: 1fr; max-width: 340px; margin: 0 auto 2rem; }
   .download-content h2 { font-size: 1.8rem; }
   .dl-card { padding: 1.5rem 1.2rem; }
@@ -1364,9 +1384,15 @@ footer {
 @media (max-width: 768px) {
   nav { padding: 0.85rem 1.2rem; }
   .nav-logo { font-size: 0.75rem; gap: 0.4rem; }
-  .nav-logo .dot { width: 6px; height: 6px; }
   .nav-menu-btn { display: flex !important; }
-  .nav-links { position: absolute; top: 100%; left: 0; right: 0; display: flex !important; flex-direction: column; gap: 0; background: rgba(6, 6, 11, 0.95); border-bottom: 1px solid var(--border); padding: 1rem 0; max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+  .nav-links {
+    position: absolute; top: 100%; left: 0; right: 0;
+    display: flex !important; flex-direction: column; gap: 0;
+    background: rgba(15, 15, 15, 0.97);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 0; max-height: 0; overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
   .nav-links.mobile-open { max-height: 500px; }
   .nav-links.mobile-open li { border-bottom: 1px solid var(--border); }
   .nav-links li { padding: 0.8rem 1.5rem; }
@@ -1380,44 +1406,38 @@ footer {
   .hero-badge { font-size: 0.58rem; padding: 0.35rem 0.9rem; margin-bottom: 1.5rem; }
   .btn-primary { font-size: 0.68rem; padding: 0.7rem 1.4rem; }
   .btn-outline { font-size: 0.75rem; padding: 0.7rem 1.4rem; }
-  .hero-scroll { font-size: 0.55rem; bottom: 1.5rem; }
-  .features { padding: 4rem 0; }
-  .features-header { margin-bottom: 2.5rem; }
-  .features-header h2 { font-size: 1.6rem; margin-bottom: 0.3rem; }
-  .features-header p { font-size: 0.88rem; max-width: 100%; }
-  .features-grid { grid-template-columns: 1fr; gap: 0; }
+  .section { --section-y: 4rem; }
+  .section--major { --section-y: 4.5rem; }
+  .section-head { margin-bottom: 2.5rem; }
+  .section-head h2 { font-size: 1.6rem; margin-bottom: 0.3rem; }
+  .section--major .section-head h2 { font-size: 1.8rem; }
+  .section-head p, .section--major .section-head p { font-size: 0.88rem; max-width: 100%; }
+  .card-grid { grid-template-columns: 1fr; gap: 0; }
   .feature-card { padding: 1.4rem; }
   .feature-tag { font-size: 0.55rem; }
   .feature-card h3 { font-size: 0.95rem; margin-bottom: 0.3rem; }
   .feature-card p { font-size: 0.8rem; }
-  .visualizers { padding: 4rem 0; }
-  .viz-header h2 { font-size: 1.6rem; }
-  .viz-header p { font-size: 0.88rem; }
   .viz-preview { height: 140px; }
   .viz-info h3 { font-size: 0.68rem; }
   .viz-info p { font-size: 0.78rem; }
-  .rack-text h3 { font-size: 1.1rem; margin-bottom: 0.4rem; }
-  .rack-text p { font-size: 0.85rem; line-height: 1.6; }
-  .eq-section { padding: 4rem 0; }
-  .eq-text h2 { font-size: 1.6rem; margin-bottom: 0.8rem; }
-  .eq-text p { font-size: 0.88rem; margin-bottom: 1rem; line-height: 1.6; max-width: 100%; }
-  .eq-features li { font-size: 0.78rem; padding: 0.35rem 0; }
-  .eq-screenshot { border-radius: 8px; }
-  .specs { padding: 4rem 0; }
-  .specs h2 { font-size: 1.6rem; margin-bottom: 2rem; }
+  .sub-head { font-size: 1.1rem; margin-bottom: 0.4rem; }
+  .sub-copy { font-size: 0.85rem; line-height: 1.6; }
+  .split-text > p { font-size: 0.88rem; margin-bottom: 1rem; line-height: 1.6; max-width: 100%; }
+  .arrow-list li { font-size: 0.78rem; padding: 0.35rem 0; }
+  .split-media { border-radius: 8px; }
   .specs-table th { font-size: 0.55rem; padding: 0.7rem 1rem; }
   .specs-table td { font-size: 0.78rem; padding: 0.7rem 1rem; }
-  .mini-player-content { padding: 0; }
-  .integrations { padding: 4rem 0; }
-  .integrations-header h2 { font-size: 1.6rem; }
-  .integrations-header p { font-size: 0.88rem; }
-  .integrations-grid { grid-template-columns: 1fr; }
-  .integration-item { padding: 1.4rem; }
-  .integration-item h3 { font-size: 0.88rem; }
-  .integration-item p { font-size: 0.78rem; }
-  .prism-text h3 { font-size: 1.1rem; }
-  .prism-text p { font-size: 0.85rem; }
-  .download-section { padding: 4rem 0; }
+  .marker-grid { grid-template-columns: 1fr; }
+  .marker-item { padding: 1.4rem; }
+  .marker-item h3 { font-size: 0.88rem; }
+  .marker-item p { font-size: 0.78rem; }
+  .compact-list { columns: 1; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .stat-tile { padding: 0.9rem; }
+  .stat-tile .v { font-size: 1.15rem; }
+  .act-divider { margin: 2rem auto; gap: 1rem; padding: 0 1.8rem; }
+  .act-divider-label { font-size: 0.55rem; letter-spacing: 0.15em; }
+  .act-divider::before, .act-divider::after { height: 28px; }
   .download-content { max-width: 100%; }
   .download-content h2 { font-size: 1.6rem; }
   .download-content > p { font-size: 0.88rem; margin-bottom: 2rem; }
@@ -1437,31 +1457,15 @@ footer {
   footer { padding: 2.5rem 0; }
   .footer-inner { flex-direction: column; gap: 1.5rem; }
   .footer-left { font-size: 0.72rem; }
-  .footer-links { gap: 1rem; }
+  .footer-links { gap: 1rem; justify-content: center; }
   .footer-links a { font-size: 0.72rem; }
-  .footer-status { font-size: 0.55rem; margin-top: 1.5rem; padding-top: 1.5rem; }
 }
 
 @media (max-width: 480px) {
   nav { padding: 0.75rem 1rem; }
   .nav-logo { font-size: 0.68rem; }
-  .nav-menu-btn { display: flex !important; }
-  .nav-links { position: absolute; top: 100%; left: 0; right: 0; display: flex !important; flex-direction: column; gap: 0; background: rgba(6, 6, 11, 0.95); border-bottom: 1px solid var(--border); padding: 1rem 0; max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
-  .nav-links.mobile-open { max-height: 500px; }
-  .nav-links.mobile-open li { border-bottom: 1px solid var(--border); }
-  .nav-links li { padding: 0.8rem 1.5rem; }
-  .nav-links a { display: block; }
   .nav-download { padding: 0.35rem 0.8rem; font-size: 0.55rem !important; }
   .container { padding: 0 1.5rem; }
-  body, section, .features, .visualizers, .eq-section, .download-section, .specs, footer {
-    padding-left: 1.5rem !important;
-    padding-right: 1.5rem !important;
-  }
-  /* Prevent double padding for .container */
-  .container.container, section.container {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-  }
   .hero { padding: 6rem 1.5rem 2.5rem; }
   .hero h1 { font-size: 1.8rem; }
   .hero-sub { font-size: 0.85rem; }
@@ -1470,43 +1474,32 @@ footer {
   .btn-primary { font-size: 0.65rem; padding: 0.65rem 1.2rem; }
   .btn-outline { font-size: 0.7rem; padding: 0.65rem 1.2rem; gap: 0.4rem; }
   .hero-actions { gap: 0.8rem; }
-  .hero-scroll { font-size: 0.5rem; }
+  .section { --section-y: 3.5rem; }
+  .section--major { --section-y: 4rem; }
   .section-label { font-size: 0.55rem; margin-bottom: 0.6rem; }
-  .features { padding: 3.5rem 0; }
-  .features-header { margin-bottom: 2rem; }
-  .features-header h2 { font-size: 1.4rem; margin-bottom: 0.25rem; }
-  .features-header p { font-size: 0.8rem; }
+  .section-head { margin-bottom: 2rem; }
+  .section-head h2 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  .section--major .section-head h2 { font-size: 1.55rem; }
+  .section-head p, .section--major .section-head p { font-size: 0.8rem; }
   .feature-card { padding: 1.2rem; }
   .feature-tag { font-size: 0.5rem; padding: 0.15rem 0.45rem; margin-bottom: 0.6rem; }
   .feature-card h3 { font-size: 0.9rem; }
   .feature-card p { font-size: 0.75rem; }
-  .visualizers { padding: 3.5rem 0; }
-  .viz-header h2 { font-size: 1.4rem; }
-  .viz-header p { font-size: 0.8rem; }
   .viz-preview { height: 120px; }
-  .viz-info { padding: 1rem 1rem; }
+  .viz-info { padding: 1rem; }
   .viz-info h3 { font-size: 0.65rem; }
   .viz-info p { font-size: 0.75rem; }
-  .rack-text h3 { font-size: 1rem; }
-  .rack-text p { font-size: 0.8rem; }
-  .eq-section { padding: 3.5rem 0; }
-  .eq-text h2 { font-size: 1.4rem; }
-  .eq-text p { font-size: 0.8rem; margin-bottom: 0.8rem; }
-  .eq-features li { font-size: 0.75rem; padding: 0.3rem 0; }
-  .specs { padding: 3.5rem 0; }
-  .specs h2 { font-size: 1.4rem; margin-bottom: 1.5rem; }
+  .sub-head { font-size: 1rem; }
+  .sub-copy { font-size: 0.8rem; }
+  .split-text > p { font-size: 0.8rem; margin-bottom: 0.8rem; }
+  .arrow-list li { font-size: 0.75rem; padding: 0.3rem 0; }
   .specs-table { border-radius: 6px; }
   .specs-table th { font-size: 0.52rem; padding: 0.6rem 0.8rem; }
   .specs-table td { font-size: 0.75rem; padding: 0.6rem 0.8rem; }
-  .integrations { padding: 3.5rem 0; }
-  .integrations-header h2 { font-size: 1.4rem; }
-  .integrations-header p { font-size: 0.8rem; }
-  .integration-item { padding: 1.2rem; }
-  .integration-item h3 { font-size: 0.82rem; }
-  .integration-item p { font-size: 0.75rem; }
-  .prism-text h3 { font-size: 1rem; }
-  .prism-text p { font-size: 0.8rem; }
-  .download-section { padding: 3.5rem 0; }
+  .marker-item { padding: 1.2rem; }
+  .marker-item h3 { font-size: 0.82rem; }
+  .marker-item p { font-size: 0.75rem; }
+  .compact-list li { font-size: 0.78rem; }
   .download-content h2 { font-size: 1.4rem; }
   .download-content > p { font-size: 0.8rem; margin-bottom: 1.5rem; }
   .download-grid { gap: 0.8rem; }
@@ -1520,25 +1513,28 @@ footer {
   footer { padding: 2rem 0; }
   .footer-left { font-size: 0.68rem; }
   .footer-links a { font-size: 0.68rem; }
-  .footer-status { font-size: 0.5rem; }
 }
 
-/* Fade-in */
-.fade-in {
+/* Fade-in. Only hidden when JS is running to un-hide it, so the page
+   still reads with scripts blocked or broken. */
+.js .fade-in {
   opacity: 0;
   transform: translateY(20px);
   transition: opacity 0.6s ease, transform 0.6s ease;
 }
-.fade-in.visible {
-  opacity: 1;
-  transform: translateY(0);
+
+.js .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .js .fade-in { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
 }
 </style>
+<script>document.documentElement.classList.add('js');</script>
 </head>
 <body>
 
-<canvas id="starfield"></canvas>
-<div class="topo-grid"></div>
+<canvas id="particles"></canvas>
 
 <!-- Nav -->
 <nav>
@@ -1546,27 +1542,23 @@ footer {
     <span class="nav-logo-svg" style="display:inline-flex;align-items:center;height:2.8em;width:2.8em;margin-right:1.2em;vertical-align:middle;">
       <svg viewBox="0 0 1024 1024" width="4em" height="4em" xmlns="http://www.w3.org/2000/svg" style="display:block;min-width:4em;min-height:4em;">
         <g id="main">
-          <path d="M526.083,500.65C529.86,496.662 535.112,494.402 540.605,494.402C553.071,494.402 576.056,494.402 588.831,494.402C594.652,494.402 600.185,496.939 603.984,501.35C610.054,508.396 619.61,519.49 627.207,528.31C633.905,536.085 633.631,547.668 626.573,555.117C603.295,579.689 553.937,631.788 536.916,649.755C533.139,653.742 527.889,656 522.397,656L452,656C440.954,656 432,647.046 432,636C432,626.32 432,615.247 432,607.967C432,602.851 433.96,597.93 437.478,594.215C454.783,575.942 508.184,519.551 526.083,500.65Z" fill="#0097ff"/>
-          <path d="M580,389.237C580,378.578 588.641,369.937 599.3,369.937C625.097,369.937 669.782,369.937 688.899,369.937C694.682,369.937 700.183,372.436 703.987,376.792C736.676,414.222 893.163,593.401 921.571,625.929C924.427,629.198 926,633.392 926,637.733C926,637.733 926,637.734 926,637.734C926,648.379 917.371,657.008 906.726,657.008L817.1,657.008C811.318,657.008 805.817,654.51 802.013,650.155C769.332,612.742 612.909,433.673 584.448,401.092C581.58,397.809 580,393.598 580,389.239C580,389.238 580,389.237 580,389.237Z" fill="#0097ff"/>
+          <path d="M526.083,500.65C529.86,496.662 535.112,494.402 540.605,494.402C553.071,494.402 576.056,494.402 588.831,494.402C594.652,494.402 600.185,496.939 603.984,501.35C610.054,508.396 619.61,519.49 627.207,528.31C633.905,536.085 633.631,547.668 626.573,555.117C603.295,579.689 553.937,631.788 536.916,649.755C533.139,653.742 527.889,656 522.397,656L452,656C440.954,656 432,647.046 432,636C432,626.32 432,615.247 432,607.967C432,602.851 433.96,597.93 437.478,594.215C454.783,575.942 508.184,519.551 526.083,500.65Z" fill="#38bdf8"/>
+          <path d="M580,389.237C580,378.578 588.641,369.937 599.3,369.937C625.097,369.937 669.782,369.937 688.899,369.937C694.682,369.937 700.183,372.436 703.987,376.792C736.676,414.222 893.163,593.401 921.571,625.929C924.427,629.198 926,633.392 926,637.733C926,637.733 926,637.734 926,637.734C926,648.379 917.371,657.008 906.726,657.008L817.1,657.008C811.318,657.008 805.817,654.51 802.013,650.155C769.332,612.742 612.909,433.673 584.448,401.092C581.58,397.809 580,393.598 580,389.239C580,389.238 580,389.237 580,389.237Z" fill="#38bdf8"/>
         </g>
       </svg>
     </span>
     ASTRA
   </div>
-  <button class="nav-menu-btn" id="navMenuBtn">
+  <button class="nav-menu-btn" id="navMenuBtn" aria-label="Menu" aria-expanded="false">
     <span></span>
     <span></span>
     <span></span>
   </button>
   <ul class="nav-links" id="navLinks">
-    <li><a href="#features">Features</a></li>
-    <li><a href="#visualizers">Scopes</a></li>
-    <li><a href="#specs">Specs</a></li>
-    <li><a href="#integrations">Integrations</a></li>
-    <li><a href="#api">Ecosystem</a></li>
-    <li><a href="/prism/">Prism</a></li>
-    <li><a href="/xlrc/">XLRC</a></li>
-    <li><a href="/xlrcdb/">XLRCDB</a></li>
+    <li><a href="#playback">Player</a></li>
+    <li><a href="#scopes">Scopes</a></li>
+    <li><a href="#spatial">Spatial</a></li>
+    <li><a href="#parallax">Parallax</a></li>
     <li><a href="https://github.com/Boof2015/astra/wiki" target="_blank" rel="noopener">Wiki</a></li>
     <li><a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="nav-download">Download</a></li>
   </ul>
@@ -1607,28 +1599,31 @@ footer {
   </div>
 </section>
 
-<!-- Features -->
-<section class="features container fade-in" id="features">
-  <div class="features-header">
-    <div class="section-label"><span>//</span> SECTION_01</div>
+<!-- ══════════════ ACT 1: THE PLAYER ══════════════ -->
+
+<!-- Playback -->
+<section class="section section--major container fade-in" id="playback">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> PLAYBACK</div>
     <h2>Built different.</h2>
-    <p>Not another wrapper around a web player. Real audio processing for people who care about how their music sounds.</p>
+    <p>Not another wrapper around a web player. Real audio processing, from the file to the DAC.</p>
   </div>
-  <div class="features-grid">
+
+  <div class="card-grid">
     <div class="feature-card">
       <div class="feature-tag">Playback</div>
       <h3>Gapless playback</h3>
-      <p>Pre-buffered crossfade-free transitions so albums flow the way they were mastered. No gaps, no glitches, no compromises.</p>
+      <p>Pre-buffered, crossfade-free transitions so albums flow the way they were mastered. No gaps, no glitches, no compromises.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Output</div>
+      <h3>Bit-perfect output</h3>
+      <p>WASAPI Exclusive on Windows, CoreAudio HAL on macOS, ALSA hw on Linux. The OS mixer never touches your samples.</p>
     </div>
     <div class="feature-card">
       <div class="feature-tag">Formats</div>
       <h3>Everything plays</h3>
-      <p>FLAC, MP3, WAV, OGG, AAC, M4A, OPUS, WMA, AIFF natively, with an FFmpeg fallback for the rest.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-tag">Library</div>
-      <h3>Your collection, organized</h3>
-      <p>Point it at your folders. Metadata extraction, album artwork, searchable library by artist, album, or track. Favorites and history tracked automatically.</p>
+      <p>FLAC, MP3, WAV, OGG, AAC, M4A, OPUS, WMA, AIFF, ALAC, APE, WavPack and IAMF natively, with an FFmpeg fallback for the rest.</p>
     </div>
     <div class="feature-card">
       <div class="feature-tag">DSP</div>
@@ -1636,46 +1631,224 @@ footer {
       <p>Real-time audio analysis through a native C++ module. The analysis path is tapped independently from your output routing.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-tag">Interface</div>
-      <h3>Adapts to your music</h3>
-      <p>Accent colors pulled from album art. Fullscreen mode with ambient spectrum backdrop. A home page sky that changes with the time of day.</p>
+      <div class="feature-tag">Loudness</div>
+      <h3>Normalization that works</h3>
+      <p>ReplayGain and Opus R128 support, so a shuffled library stops lurching between quiet masters and loud ones.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-tag">Audio</div>
+      <div class="feature-tag">Routing</div>
       <h3>Proper audio settings</h3>
-      <p>Output device selection, loudness normalization, multichannel support with per-channel remapping, and Bluetooth delay calibration.</p>
+      <p>Output device selection, multichannel support with per-channel remapping, and mic-based delay calibration for Bluetooth.</p>
     </div>
-    <div class="feature-card">
-      <div class="feature-tag">Spatial</div>
-      <h3>Dolby Atmos decoding</h3>
-      <p>Multichannel Atmos decoding that works without Atmos-compatible hardware. Decode and play back spatial tracks natively.</p>
+  </div>
+
+  <!-- EQ -->
+  <div class="showcase-row">
+    <div class="split">
+      <div class="split-text">
+        <h3 class="sub-head">Twenty bands.</h3>
+        <p>A fully parametric equalizer with up to 20 bands, five filter types, and a live frequency response graph with spectrum overlay. If you use AutoEQ, headphone calibration profiles import directly.</p>
+        <ul class="arrow-list">
+          <li>Up to 20 parametric bands</li>
+          <li>Peaking, low shelf, high shelf, high pass, low pass</li>
+          <li>&plusmn;12 dB gain, Q from 0.1 to 18</li>
+          <li>Live response graph with spectrum overlay</li>
+          <li>AutoEQ profile import</li>
+          <li>Preset import and export</li>
+        </ul>
+      </div>
+      <div class="split-media">
+        <img src="assets/EQ.png" alt="Astra parametric equalizer">
+      </div>
     </div>
-    <div class="feature-card">
-      <div class="feature-tag">Library</div>
-      <h3>Metadata editor</h3>
-      <p>Edit tags, artwork, and metadata directly inside the player. No need to switch to a separate tool to fix a misspelled artist.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-tag">Navigation</div>
-      <h3>Quick Launch</h3>
-      <p>A keyboard shortcut to jump anywhere in your library without touching the mouse. Search tracks, albums, and artists instantly.</p>
+  </div>
+
+  <!-- Audio pipeline shelf -->
+  <div class="showcase-row">
+    <h3 class="sub-head">See the signal path.</h3>
+    <p class="sub-copy">The pipeline shelf shows what is actually happening to the current track, node by node. Decoder, resampler, routing, spatial, normalization, EQ, delay compensation, output, with live values at every stage. Stages only appear when they are actually doing something, so one glance tells you whether anything is touching the signal.</p>
+    <div class="ui">
+      <div class="pipe">
+        <div class="pipe-node"><span class="pipe-label">Source</span><span class="pipe-val">FLAC 24/48.0</span></div>
+        <span class="pipe-arrow" aria-hidden="true">&rarr;</span>
+        <div class="pipe-node"><span class="pipe-label">Decoder</span><span class="pipe-val">Web Audio API</span></div>
+        <span class="pipe-arrow" aria-hidden="true">&rarr;</span>
+        <div class="pipe-node"><span class="pipe-label">Resampler</span><span class="pipe-val">48.0 &rarr; 44.1 kHz</span></div>
+        <span class="pipe-arrow" aria-hidden="true">&rarr;</span>
+        <div class="pipe-node"><span class="pipe-label">Normalization</span><span class="pipe-val">-7.7 dB</span></div>
+        <span class="pipe-arrow" aria-hidden="true">&rarr;</span>
+        <div class="pipe-node"><span class="pipe-label">Output</span><span class="pipe-val">Speakers</span></div>
+      </div>
     </div>
   </div>
 </section>
 
-<div class="section-divider"></div>
 
-<!-- Visualizers -->
-<section class="visualizers container fade-in" id="visualizers">
-  <div class="viz-header">
-    <div class="section-label"><span>//</span> SECTION_02</div>
-    <h2>Seven scopes. Your layout.</h2>
-    <p>Real-time visualizers powered by native C++. Seven scopes, fully customizable. Drag, resize, and arrange them however you want. The analysis path is independent from output routing, so scopes always reflect the source material.</p>
+<!-- Library -->
+<section class="section container fade-in" id="library">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> LIBRARY</div>
+    <h2>Your collection, organized.</h2>
+    <p>Point it at your folders. Metadata, artwork, and history are handled from there.</p>
   </div>
+
+  <div class="card-grid">
+    <div class="feature-card">
+      <div class="feature-tag">Browse</div>
+      <h3>Six ways in</h3>
+      <p>Artists, albums, tracks, genres, years, folders. Album counts, a singles section, and multi-disc releases handled properly.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Ratings</div>
+      <h3>Stars that mean something</h3>
+      <p>One to five stars in half-star steps, with rating calibration so your scale stays consistent across the library.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Playlists</div>
+      <h3>Rules, not lists</h3>
+      <p>Dynamic playlists build themselves from metadata, favorites, ratings, play count, dates, duration and BPM.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Import</div>
+      <h3>Bring your playlists</h3>
+      <p>CSV, M3U, M3U8, XSPF, WPL and ASX in, M3U and M3U8 back out. Missing tracks are preserved and heal themselves when the files reappear.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Metadata</div>
+      <h3>Fix it in place</h3>
+      <p>Bulk edit titles, artists, albums and artwork, with undo and redo. Write to the file or keep overrides in the database.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Lyrics</div>
+      <h3>Synced, timed, translated</h3>
+      <p>Embedded tags, .lrc, .xlrc, LRCLIB and XLRCDB. Word-level timing, furigana, translations, and a pop-out window.</p>
+    </div>
+  </div>
+
+  <!-- Listening stats -->
+  <div class="showcase-row">
+    <h3 class="sub-head">Listening stats <span class="status-tag">Experimental</span></h3>
+    <p class="sub-copy">Seven days, thirty days, a year, or everything you have ever played. Listening time, play counts, active days, and your top tracks, albums and artists. History from elsewhere imports through a documented file format, merging rather than overwriting, and any summary exports as a share card.</p>
+    <div class="ui">
+      <div class="ui-head">
+        <div>
+          <div class="ui-eyebrow">Your library</div>
+          <div class="chart-title" style="font-size: 1rem; margin-top: 0.2rem;">Listening Stats</div>
+        </div>
+        <div class="ui-btns">
+          <span class="ui-btn">Share</span>
+          <span class="ui-btn mono is-dim">7D</span>
+          <span class="ui-btn mono is-active">30D</span>
+          <span class="ui-btn mono is-dim">1Y</span>
+          <span class="ui-btn mono is-dim">All</span>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-tile"><div class="k">Listening Time</div><div class="v">5:16:51</div></div>
+        <div class="stat-tile"><div class="k">Qualified Plays</div><div class="v">189</div></div>
+        <div class="stat-tile"><div class="k">Tracks Played</div><div class="v">247</div></div>
+        <div class="stat-tile"><div class="k">Active Days</div><div class="v">12</div></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-head">
+          <span class="chart-title">Listening Time</span>
+          <span class="chart-hint">Hover a bar for exact time</span>
+        </div>
+        <div class="chart-scroll">
+          <div class="chart">
+            <div class="bars">
+          <div class="bar" title="Jul 3 &middot; no listening"></div>
+          <div class="bar" title="Jul 4 &middot; no listening"></div>
+          <div class="bar" title="Jul 5 &middot; no listening"></div>
+          <div class="bar" title="Jul 6 &middot; no listening"></div>
+          <div class="bar" title="Jul 7 &middot; no listening"></div>
+          <div class="bar" title="Jul 8 &middot; no listening"></div>
+          <div class="bar" title="Jul 9 &middot; no listening"></div>
+          <div class="bar" title="Jul 10 &middot; no listening"></div>
+          <div class="bar" title="Jul 11 &middot; no listening"></div>
+          <div class="bar" title="Jul 12 &middot; no listening"></div>
+          <div class="bar" title="Jul 13 &middot; no listening"></div>
+          <div class="bar" title="Jul 14 &middot; no listening"></div>
+          <div class="bar" title="Jul 15 &middot; no listening"></div>
+          <div class="bar" title="Jul 16 &middot; no listening"></div>
+          <div class="bar" title="Jul 17 &middot; 10m"><i style="height:8.1%"></i></div>
+          <div class="bar" title="Jul 18 &middot; 47m"><i style="height:37.9%"></i></div>
+          <div class="bar" title="Jul 19 &middot; 9m"><i style="height:7.3%"></i></div>
+          <div class="bar" title="Jul 20 &middot; 9m"><i style="height:7.3%"></i></div>
+          <div class="bar" title="Jul 21 &middot; 56m"><i style="height:45.2%"></i></div>
+          <div class="bar" title="Jul 22 &middot; 2h 4m"><i style="height:100.0%"></i></div>
+          <div class="bar" title="Jul 23 &middot; 25m"><i style="height:20.2%"></i></div>
+          <div class="bar" title="Jul 24 &middot; 3m"><i style="height:2.4%"></i></div>
+          <div class="bar" title="Jul 25 &middot; no listening"></div>
+          <div class="bar" title="Jul 26 &middot; 3m"><i style="height:2.4%"></i></div>
+          <div class="bar" title="Jul 27 &middot; 27m"><i style="height:21.8%"></i></div>
+          <div class="bar" title="Jul 28 &middot; no listening"></div>
+          <div class="bar" title="Jul 29 &middot; no listening"></div>
+          <div class="bar" title="Jul 30 &middot; 2m"><i style="height:1.6%"></i></div>
+          <div class="bar" title="Jul 31 &middot; no listening"></div>
+          <div class="bar" title="Aug 1 &middot; 1m"><i style="height:0.8%"></i></div>
+            </div>
+            <div class="bar-axis">
+          <span>Jul 3</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>Jul 8</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>Jul 13</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>Jul 18</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>Jul 23</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>Jul 28</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Scopes -->
+<section class="section container fade-in" id="scopes">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> SCOPES</div>
+    <h2>Seven scopes. Your layout.</h2>
+    <p>Real-time visualizers powered by native C++. Drag, resize, and arrange them however you want. The analysis path is independent from output routing, so scopes always reflect the source material.</p>
+    <div class="chip-row">
+      <span class="chip">Spectrum</span>
+      <span class="chip">Oscilloscope</span>
+      <span class="chip">Vectorscope</span>
+      <span class="chip">Spectrogram</span>
+      <span class="chip">Waveform</span>
+      <span class="chip">VU Meter</span>
+      <span class="chip">LUFS Meter</span>
+    </div>
+  </div>
+
   <div class="viz-grid">
     <div class="viz-card">
       <div class="viz-preview">
-        <video autoplay muted loop style="width: 100%; height: 100%; object-fit: cover;">
+        <video autoplay muted loop playsinline>
           <source src="assets/oscilloscope.mp4" type="video/mp4">
         </video>
       </div>
@@ -1686,18 +1859,18 @@ footer {
     </div>
     <div class="viz-card">
       <div class="viz-preview">
-        <video autoplay muted loop style="width: 100%; height: 100%; object-fit: cover;">
+        <video autoplay muted loop playsinline>
           <source src="assets/spectrum.mp4" type="video/mp4">
         </video>
       </div>
       <div class="viz-info">
         <h3>Spectrum Analyzer</h3>
-        <p>Configurable FFT with logarithmic frequency scaling and adjustable smoothing.</p>
+        <p>Configurable FFT with logarithmic frequency scaling, heat palettes, and adjustable smoothing.</p>
       </div>
     </div>
     <div class="viz-card">
       <div class="viz-preview">
-        <video autoplay muted loop style="width: 100%; height: 100%; object-fit: cover;">
+        <video autoplay muted loop playsinline>
           <source src="assets/vectorscope.mp4" type="video/mp4">
         </video>
       </div>
@@ -1708,181 +1881,290 @@ footer {
     </div>
   </div>
 
-  <!-- Rack customization -->
-  <div class="rack-showcase">
-    <div class="rack-text">
-      <h3>Build your own rack.</h3>
-      <p>Pick from seven scopes, arrange them in any layout, resize to fit your workflow. The entire scope rack is yours to customize. Save presets and switch between setups on the fly.</p>
-    </div>
+  <div class="showcase-row">
+    <h3 class="sub-head">Build your own rack.</h3>
+    <p class="sub-copy">Pick from seven scopes, arrange them in any layout, resize to fit your workflow. Save analyzer profiles and switch between setups on the fly. Any scope can pop out into its own window.</p>
     <div class="showcase-frame">
-      <video width="100%" autoplay muted loop style="display: block; margin-top: 36px;">
+      <video autoplay muted loop playsinline>
         <source src="assets/scope edit.mp4" type="video/mp4">
       </video>
     </div>
   </div>
 </section>
 
-<div class="section-divider"></div>
 
-<!-- EQ -->
-<section class="eq-section container fade-in">
-  <div class="eq-content">
-    <div class="eq-text">
-      <div class="section-label"><span>//</span> SECTION_03</div>
-      <h2>Parametric EQ</h2>
-      <p>A fully parametric equalizer with up to 10 bands, a live frequency response graph with spectrum overlay, and built-in presets. If you use AutoEQ, you can import headphone calibration profiles directly.</p>
-      <ul class="eq-features">
-        <li>Up to 10 parametric bands</li>
-        <li>Live frequency response graph</li>
-        <li>Spectrum overlay on EQ curve</li>
-        <li>Built-in presets</li>
-        <li>AutoEQ profile import</li>
-        <li>Custom preset saving</li>
+<!-- Interface -->
+<section class="section container fade-in" id="interface">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> INTERFACE</div>
+    <h2>Adapts to your music.</h2>
+    <p>Six themes including a full light mode, or let the accent come straight from the album art.</p>
+  </div>
+
+  <div class="split">
+    <div class="split-text">
+      <h3 class="sub-head">Fullscreen mode</h3>
+      <p>Album art backdrop with ambient spectrum visualization, and badges for Atmos, Eclipsa and multichannel content. Lean back and let the music take over.</p>
+      <ul class="arrow-list">
+        <li>Light and dark, six presets</li>
+        <li>Custom accent, or pulled from cover art</li>
+        <li>Configurable keyboard and mouse bindings</li>
+        <li>Shortcuts that work while Astra is unfocused</li>
+        <li>Session restore for queue, playback and view</li>
+        <li>UI scaling</li>
       </ul>
     </div>
-    <div class="eq-screenshot">
-      <img src="assets/EQ.png" alt="Astra equalizer">
+    <div class="split-media">
+      <img src="assets/Fullscreen.png" alt="Astra fullscreen mode">
+    </div>
+  </div>
+
+  <div class="showcase-row">
+    <div class="split split--reverse">
+      <div class="split-text">
+        <h3 class="sub-head">Out of the way.</h3>
+        <p>When you just want your music playing without the full window, the mini player keeps controls accessible while staying out of your workspace. Album art backdrop, contrast adaptation, and its own window class on Linux.</p>
+      </div>
+      <div class="split-media">
+        <img src="assets/Miniplayer.png" alt="Astra mini player">
+      </div>
     </div>
   </div>
 </section>
 
-<div class="section-divider"></div>
+<!-- ══════════════ THE HINGE ══════════════ -->
+<div class="act-divider">
+  <span class="act-divider-label">Optional <span>//</span> off by default</span>
+</div>
 
-<!-- Fullscreen -->
-<section class="container fade-in" style="padding: 6rem 0;">
-  <div class="section-label"><span>//</span> FULLSCREEN</div>
-  <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 1rem;">Fullscreen mode</h2>
-  <p style="color: var(--text-secondary); font-weight: 400; max-width: 500px; margin-bottom: 2rem; font-size: 0.95rem;">Album art backdrop with ambient spectrum visualization. Lean back and let the music take over.</p>
-  <div class="showcase-frame">
-    <img src="assets/Fullscreen.png" alt="Astra fullscreen mode">
+<!-- Spatial -->
+<section class="section section--major container fade-in" id="spatial">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> SPATIAL</div>
+    <h2>Audio in three dimensions.</h2>
+    <p>Astra is the first general purpose desktop music library player with native IAMF and Eclipsa Audio playback. Spatial tracks are first-class citizens of your library, decoded and rendered entirely on your own machine by the Astra Spatial Engine.</p>
   </div>
-</section>
 
-<!-- Mini Player -->
-<section class="container fade-in" style="padding: 6rem 0;">
-  <div class="mini-player-content">
-    <div class="mini-player-screenshot">
-      <img src="assets/Miniplayer.png" alt="Astra mini player">
-    </div>
-    <div class="mini-player-text">
-      <div class="section-label"><span>//</span> MINI PLAYER</div>
-      <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 1rem;">Out of the way.</h2>
-      <p style="color: var(--text-secondary); font-weight: 400; max-width: 440px; font-size: 0.95rem; line-height: 1.7;">When you just want your music playing without the full window, the mini player keeps controls accessible while staying out of your workspace.</p>
-    </div>
-  </div>
-</section>
-
-<div class="section-divider"></div>
-
-<!-- Integrations -->
-<section class="integrations container fade-in" id="integrations">
-  <div class="integrations-header">
-    <div class="section-label"><span>//</span> INTEGRATIONS</div>
-    <h2>Connects to your services.</h2>
-    <p>Astra integrates with the services you already use. Everything is opt-in and off by default.</p>
-  </div>
-  <div class="integrations-grid">
-    <div class="integration-item">
-      <h3>Discord Rich Presence</h3>
-      <p>Show what you're listening to on your Discord profile, complete with cover art.</p>
-    </div>
-    <div class="integration-item">
-      <h3>Last.fm Scrobbling</h3>
-      <p>Track your listening history automatically. Disabled by default.</p>
-    </div>
-    <div class="integration-item">
-      <h3>Jellyfin &amp; Navidrome</h3>
-      <p>Browse and play your self-hosted media server library directly inside Astra.</p>
-    </div>
-  </div>
-</section>
-
-<div class="section-divider"></div>
-
-<!-- Ecosystem -->
-<section class="container fade-in" style="padding: 6rem 0;" id="api">
-  <div class="section-label"><span>//</span> ECOSYSTEM</div>
-  <h2 style="font-family: var(--sans); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 0.5rem;">Build on top of Astra.</h2>
-  <p style="color: var(--text-secondary); font-weight: 400; max-width: 520px; margin-bottom: 3rem; font-size: 0.95rem;">A local REST API lets external tools read playback state, subscribe to real-time updates, and optionally control playback. Loopback only, bearer token auth, disabled by default.</p>
-
-  <div class="api-content">
-    <div class="api-text">
-      <ul class="api-features">
-        <li><span class="api-tag read">GET</span> /v1/now-playing - track, artist, album, state, position</li>
-        <li><span class="api-tag read">GET</span> /v1/events - real-time SSE stream of playback updates</li>
-        <li><span class="api-tag read">GET</span> /v1/artwork/current - current track cover art bytes</li>
-        <li><span class="api-tag write">POST</span> /v1/control - play, pause, next, previous, toggle-favorite</li>
-        <li><span class="api-tag opt">OPT-IN</span> Controls require a separate toggle in settings</li>
+  <div class="split">
+    <div class="split-text">
+      <h3 class="sub-head">Virtual Speaker Room</h3>
+      <p>Position virtual speakers around the listener in three dimensions, including elevation and room geometry, and hear the binaural render update live as you move them. Dolby Atmos multichannel decoding works too, without Atmos-compatible hardware.</p>
+      <ul class="arrow-list">
+        <li>Native IAMF and Eclipsa Audio decoding</li>
+        <li>Binaural render for headphones</li>
+        <li>Direct output to multichannel hardware</li>
+        <li>Height layouts up to 7.1.4</li>
+        <li>Diffuse-field EQ and bass crossover</li>
+        <li>Look-ahead brick-wall limiter for headroom</li>
       </ul>
-      <a href="https://github.com/Boof2015/astra/wiki/Astra-API" target="_blank" rel="noopener" class="btn-outline" style="margin-top: 1.5rem; font-size: 0.78rem;">
-        API Docs →
-      </a>
     </div>
-    <div class="api-code">
-      <div class="code-block">
-        <div class="code-header">
-          <span>GET /v1/now-playing</span>
-          <span class="lang">JSON RESPONSE</span>
+    <div class="split-media">
+      <div class="room-bar">
+        <span class="ui-eyebrow">Render</span>
+        <span class="room-seg"><span>Direct</span><span class="on">Binaural</span></span>
+        <span class="room-note">12ch &rarr; 2ch binaural</span>
+      </div>
+      <div class="room-bar">
+        <span class="ui-eyebrow">Layout</span>
+        <span class="ui-btn mono">7.1.4</span>
+        <span class="ui-btn">Ambient Upmix Off</span>
+        <span class="ui-btn mono">HRTF 44.1 kHz</span>
+      </div>
+      <div class="room-stage">
+        <span class="room-front">Front</span>
+        <span class="room-ring"></span>
+        <span class="room-listener"></span>
+          <span class="spkr" style="left:50%;top:15%">FC</span>
+          <span class="spkr" style="left:33%;top:19.7%">FL</span>
+          <span class="spkr" style="left:67%;top:19.7%">FR</span>
+          <span class="spkr spkr-h" style="left:36%;top:32%">TFL</span>
+          <span class="spkr spkr-h" style="left:64%;top:32%">TFR</span>
+          <span class="spkr" style="left:18%;top:46%">SL</span>
+          <span class="spkr" style="left:82%;top:46%">SR</span>
+          <span class="spkr spkr-h" style="left:36%;top:60%">TBL</span>
+          <span class="spkr spkr-h" style="left:64%;top:60%">TBR</span>
+          <span class="spkr" style="left:31.6%;top:71.4%">BL</span>
+          <span class="spkr" style="left:68.4%;top:71.4%">BR</span>
+        <span class="spkr lfe" style="left:50%;top:91%">LFE</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Parallax -->
+<section class="section section--major container fade-in" id="parallax">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> PARALLAX</div>
+    <h2>Every speaker in the house. <span class="status-tag">Experimental</span></h2>
+    <p>Parallax plays the same track, in sync, across every machine on your network. One host, any number of speakers, gapless across track boundaries. No cloud, no accounts, no subscription.</p>
+  </div>
+
+  <div class="split">
+    <div class="split-text">
+      <h3 class="sub-head">Synchronized, locally</h3>
+      <p>Any copy of Astra can act as a host or as a speaker. Zones are named, tuned and controlled independently, and the clock keeps itself honest without you touching anything.</p>
+      <ul class="arrow-list">
+        <li>Guided discovery and secure PIN pairing</li>
+        <li>Certificate-pinned connections</li>
+        <li>Automatic clock calibration and drift correction</li>
+        <li>Per-zone volume, output trim and delay</li>
+        <li>Mid-track joining and reconnect recovery</li>
+        <li>Gapless handoffs on every speaker at once</li>
+      </ul>
+    </div>
+    <div class="split-media">
+      <div class="ui-head">
+        <span class="ui-eyebrow">Speakers (1 playing &middot; 2 connected)</span>
+        <span class="ui-btns">
+          <span class="ui-btn">Play all</span>
+          <span class="ui-btn is-dim">Play none</span>
+          <span class="ui-btn is-active">Add speaker</span>
+        </span>
+      </div>
+      <div class="spk-row">
+        <span class="spk-id">
+          <span class="spk-dot on"></span>
+          <span>
+            <span class="spk-name">parallax-tv</span>
+            <span class="spk-state">Connected &middot; Playing</span>
+            <span class="spk-meta">Output ALSA default &middot; Trim +135 ms</span>
+          </span>
+        </span>
+        <span class="ui-btns">
+          <span class="ui-btn mono">Play here</span>
+          <span class="ui-btn mono">Tune</span>
+        </span>
+      </div>
+      <div class="spk-row">
+        <span class="spk-id">
+          <span class="spk-dot on"></span>
+          <span>
+            <span class="spk-name">living-room</span>
+            <span class="spk-state">Connected &middot; Not selected for playback</span>
+            <span class="spk-meta">Output ALSA default &middot; Trim +40 ms</span>
+          </span>
+        </span>
+        <span class="ui-btns">
+          <span class="ui-btn mono">Play here</span>
+          <span class="ui-btn mono">Tune</span>
+        </span>
+      </div>
+      <div class="spk-row">
+        <span class="spk-id">
+          <span class="spk-dot"></span>
+          <span>
+            <span class="spk-name">studio</span>
+            <span class="spk-state">Offline &middot; last seen 7/20/2026</span>
+          </span>
+        </span>
+        <span class="ui-btns"><span class="ui-btn mono">Play here</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="showcase-row">
+    <div class="marker-grid">
+      <div class="marker-item">
+        <h3>Parallax Receiver</h3>
+        <p>A headless daemon for Raspberry Pi-class Linux boxes. Web-based pairing, status and output selection, with automatic updates. Turns a spare board into a speaker without running the full app.</p>
+      </div>
+      <div class="marker-item">
+        <h3>Parallax OS</h3>
+        <p>A flashable Raspberry Pi image. Wi-Fi onboarding over a captive portal, automatic security updates, service watchdogs, and health-checked upgrades with rollback. Flash it, boot it, open parallax.local, pair.</p>
+      </div>
+    </div>
+    <div class="btn-row">
+      <a href="https://github.com/Boof2015/parallax-os/releases" target="_blank" rel="noopener" class="btn-outline">Parallax OS images →</a>
+    </div>
+  </div>
+
+  <div class="showcase-row">
+    <h3 class="sub-head">TV mode</h3>
+    <p class="sub-copy">Attach a display and Parallax OS becomes a now-playing screen: artwork, transport controls, and on-TV pairing and settings. HDMI-CEC wakes the TV and switches input when a stream starts, and your TV remote drives it.</p>
+  </div>
+</section>
+
+
+<!-- Beyond the desktop -->
+<section class="section container fade-in" id="beyond">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> BEYOND THE DESKTOP</div>
+    <h2>Off the desktop.</h2>
+    <p>Astra reaches your phone, your scripts, and anything else on your network. All of it stays local.</p>
+  </div>
+
+  <div class="split">
+    <div class="split-text">
+      <h3 class="sub-head">Astra Mobile <span class="status-tag info">Coming to Android</span></h3>
+      <p>A standalone Android player in its own right, not just a remote. It can also pair with the desktop to control playback and keep your favorites and playlists in sync, with conflicts shown side by side before anything is applied. Not publicly downloadable yet.</p>
+    </div>
+    <div>
+      <ul class="arrow-list">
+        <li>Standalone player, no desktop required</li>
+        <li>Two-way sync of favorites and playlists</li>
+        <li>Conflict review before changes apply</li>
+        <li>Pairs over your local network only</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="showcase-row">
+    <div class="marker-grid">
+      <div class="marker-item">
+        <h3>Phone Remote</h3>
+        <p>An installable web remote served by Astra itself. Scan a QR code to pair, then control playback from any phone on the network, with system media controls. No app store, no account.</p>
+      </div>
+      <div class="marker-item">
+        <h3>Astra Signal</h3>
+        <p>Turn any track into a scannable card or a link that works anywhere, with no provider IDs and no account. Copy it as an image, save a PNG, or share the link.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Companion API -->
+  <div class="showcase-row">
+    <h3 class="sub-head">Companion API</h3>
+    <p class="sub-copy">A local HTTP API lets external tools observe playback, search your library, edit the upcoming queue, and manage favorites and playlists. Loopback or user-approved paired HTTPS, bearer auth, per-client scopes, and no filesystem paths ever exposed. Off by default.</p>
+
+    <div class="api-content">
+      <div class="api-text">
+        <ul class="api-features">
+          <li><span class="api-tag read">GET</span> /v2/playback - state, position, current track</li>
+          <li><span class="api-tag read">GET</span> /v2/events - real-time SSE stream, four topics</li>
+          <li><span class="api-tag read">GET</span> /v2/search - bounded library search</li>
+          <li><span class="api-tag write">POST</span> /v2/playback/actions - play, pause, seek, shuffle, repeat</li>
+          <li><span class="api-tag write">POST</span> /v2/queue - edit the upcoming queue</li>
+          <li><span class="api-tag opt">SCOPES</span> observe, playback-control, library-search, library-write</li>
+        </ul>
+        <div class="btn-row">
+          <a href="https://github.com/Boof2015/astra/blob/main/docs/api/README.md" target="_blank" rel="noopener" class="btn-outline">API docs →</a>
+          <a href="https://github.com/Boof2015/astra/blob/main/docs/api/openapi-v2.json" target="_blank" rel="noopener" class="btn-outline">OpenAPI 3.1 →</a>
         </div>
-        <div class="code-body">
+        <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: var(--space-3);">The original /v1 endpoints remain supported for existing widgets and remotes.</p>
+      </div>
+      <div class="api-code">
+        <div class="code-block">
+          <div class="code-header">
+            <span>GET /v2/playback</span>
+            <span class="lang">JSON RESPONSE</span>
+          </div>
+          <div class="code-body">
 <pre>{
-  <span class="str">"playbackState"</span>: <span class="str">"playing"</span>,
-  <span class="str">"currentTime"</span>: <span class="num">42.13</span>,
-  <span class="str">"duration"</span>: <span class="num">218.56</span>,
-  <span class="str">"queueLength"</span>: <span class="num">37</span>,
-  <span class="str">"outputDeviceLabel"</span>: <span class="str">"MacBook Pro Speakers"</span>,
-  <span class="str">"visualizerLineColor"</span>: <span class="str">"#38bdf8"</span>,
-  <span class="str">"currentTrack"</span>: {
-    <span class="str">"id"</span>: <span class="str">"12345"</span>,
+  <span class="str">"state"</span>: <span class="str">"playing"</span>,
+  <span class="str">"positionMs"</span>: <span class="num">42130</span>,
+  <span class="str">"durationMs"</span>: <span class="num">218560</span>,
+  <span class="str">"shuffle"</span>: <span class="num">false</span>,
+  <span class="str">"repeat"</span>: <span class="str">"off"</span>,
+  <span class="str">"track"</span>: {
+    <span class="str">"ref"</span>: <span class="str">"trk_9f2c...a41"</span>,
     <span class="str">"title"</span>: <span class="str">"Running Up That Hill"</span>,
     <span class="str">"artist"</span>: <span class="str">"Kate Bush"</span>,
     <span class="str">"album"</span>: <span class="str">"Hounds of Love"</span>,
-    <span class="str">"isFavorite"</span>: <span class="num">false</span>,
-    <span class="str">"artworkUrl"</span>: <span class="str">"http://127.0.0.1:38401/..."</span>
+    <span class="str">"favorite"</span>: <span class="num">false</span>,
+    <span class="str">"artworkRef"</span>: <span class="str">"art_31b8...ce0"</span>
   }
 }</pre>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Prism -->
-  <div class="prism-showcase">
-    <div class="prism-text">
-      <h3><a href="/prism/" style="color: inherit;">Prism</a> <span class="coming-soon-tag" style="color: var(--accent); background: var(--accent-glow);">Beta</span></h3>
-      <p>Prism is a standalone audio metering app built on a port of Astra's C++ scope engine. It monitors your system output with the same scopes you know from Astra. Its Astra module connects through the Astra API to show the currently playing track and control playback directly from the meter display.</p>
-      <a href="/prism/" class="btn-outline" style="margin-top: 1.2rem; font-size: 0.78rem;">Visit Prism →</a>
-    </div>
-    <div class="showcase-frame">
-      <a href="/prism/" style="display: block;">
-        <img src="assets/Prism.png" alt="Prism - standalone scope visualizer" style="display: block; margin-top: 36px;">
-      </a>
-    </div>
-  </div>
-
-  <!-- XLRC -->
-  <div class="prism-showcase">
-    <div class="prism-text">
-      <h3><a href="/xlrc/" style="color: inherit;">XLRC</a> <span class="coming-soon-tag" style="color: var(--accent); background: var(--accent-glow);">Day-one support</span></h3>
-      <p>XLRC is an open lyric format that extends LRC with inline translations, furigana, and word-level timing. Astra reads it natively, and there's an in-browser editor for writing and timing, no install.</p>
-      <div style="margin-top: 1.2rem; display: flex; flex-wrap: wrap; gap: 0.6rem;">
-        <a href="/xlrc/" class="btn-outline" style="font-size: 0.78rem;">Explore XLRC →</a>
-        <a href="/xlrc/editor/" class="btn-outline" style="font-size: 0.78rem;">Open the editor →</a>
-      </div>
-    </div>
-    <div class="xlrc-preview">
-      <div class="xlrc-pane">
-        <div class="xlrc-pane-head">example.xlrc</div>
-        <pre class="xlrc-src"><span class="t-time">[00:12.40]</span>私[わたし]が歌[うた]う
-<span class="t-tr">[&gt;en]</span>I sing
-<span class="t-tr">[&gt;ja-Latn]</span>watashi ga utau</pre>
-      </div>
-      <div class="xlrc-pane">
-        <div class="xlrc-pane-head">rendered</div>
-        <div class="xlrc-rendered">
-          <div class="xr-line">
-            <div class="xr-text"><ruby>私<rt>わたし</rt></ruby>が<ruby>歌<rt>うた</rt></ruby>う</div>
-            <div class="xr-tr">I sing</div>
           </div>
         </div>
       </div>
@@ -1890,19 +2172,77 @@ footer {
   </div>
 </section>
 
-<div class="section-divider"></div>
+
+<!-- Integrations -->
+<section class="section container fade-in" id="integrations">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> INTEGRATIONS</div>
+    <h2>Connects to your services.</h2>
+    <p>Astra integrates with the services you already use. Everything here is opt-in and off by default.</p>
+  </div>
+  <div class="marker-grid">
+    <div class="marker-item">
+      <h3>Scrobbling</h3>
+      <p>Last.fm, ListenBrainz, and any AudioScrobbler-compatible endpoint. Custom profiles for self-hosted servers, and multi-scrobble to several destinations at once.</p>
+    </div>
+    <div class="marker-item">
+      <h3>Discord Rich Presence</h3>
+      <p>Show what you're listening to, complete with cover art. Compact or expanded layouts, configurable link targets, and a choice of what the info line shows.</p>
+    </div>
+    <div class="marker-item">
+      <h3>Self-hosted servers</h3>
+      <p>Jellyfin and any Subsonic-compatible server, including Navidrome, Airsonic, Gonic and Funkwhale. Browse, stream, and import server favorites and playlists.</p>
+    </div>
+    <div class="marker-item">
+      <h3>Lyrics providers</h3>
+      <p>LRCLIB, pointed at the default endpoint or your own mirror, plus XLRCDB lookup and download for multilingual and word-timed lyrics.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- Everything else -->
+<section class="section container fade-in" id="more">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> MORE</div>
+    <h2>And the rest.</h2>
+    <p>Smaller things that are easy to miss, and hard to give up once you have them.</p>
+  </div>
+  <ul class="compact-list">
+    <li>Quick Launch palette</li>
+    <li>Global fuzzy search across every surface</li>
+    <li>Controller navigation, Xbox and PlayStation <span class="status-tag">Experimental</span></li>
+    <li>Library integrity scanner with duplicate detection <span class="status-tag">Experimental</span></li>
+    <li>Artist relationship graph <span class="status-tag">Experimental</span></li>
+    <li>Activity indicator, 5&times;5 grid <span class="status-tag">Experimental</span></li>
+    <li>Ambient stereo to multichannel upmix</li>
+    <li>Selective settings import and export</li>
+    <li>Sleep timer</li>
+    <li>Waveform-rendering seek bar</li>
+    <li>Separate album artwork files, cover.* and folder.*</li>
+    <li>Library folder filtering</li>
+    <li>Multi-disc separators and restarted track numbering</li>
+    <li>Custom and local artist images</li>
+    <li>Automatic update checks</li>
+  </ul>
+</section>
+
 
 <!-- Specs -->
-<section class="specs container fade-in" id="specs">
-  <div class="section-label"><span>//</span> SECTION_04</div>
-  <h2>Under the hood</h2>
+<section class="section container fade-in" id="specs">
+  <div class="section-head">
+    <div class="section-label"><span>//</span> SPECS</div>
+    <h2>Under the hood</h2>
+  </div>
   <table class="specs-table">
     <thead>
       <tr><th>Component</th><th>Detail</th><th>Engine</th></tr>
     </thead>
     <tbody>
-      <tr><td>Framework</td><td>Electron + Vite</td><td><span class="status-dot native"></span>TypeScript</td></tr>
+      <tr><td>Framework</td><td>Electron + Vite, React 19</td><td><span class="status-dot native"></span>TypeScript</td></tr>
       <tr><td>Audio Pipeline</td><td>Web Audio API + native module</td><td><span class="status-dot cpp"></span>C++ DSP</td></tr>
+      <tr><td>Bit-perfect Output</td><td>WASAPI Exclusive, CoreAudio HAL, ALSA hw</td><td><span class="status-dot cpp"></span>C++ Native</td></tr>
+      <tr><td>Spatial Audio</td><td>IAMF / Eclipsa, Dolby Atmos, up to 7.1.4</td><td><span class="status-dot cpp"></span>Astra Spatial Engine</td></tr>
       <tr><td>Visualizers</td><td>7 scopes, fully customizable rack layout</td><td><span class="status-dot cpp"></span>C++ Native</td></tr>
       <tr>
         <td>Formats</td>
@@ -1916,21 +2256,24 @@ footer {
           <span class="format-tag">OPUS</span>
           <span class="format-tag">AIFF</span>
           <span class="format-tag">WMA</span>
+          <span class="format-tag">ALAC</span>
+          <span class="format-tag">APE</span>
+          <span class="format-tag">WV</span>
+          <span class="format-tag">IAMF</span>
         </td>
         <td><span class="status-dot native"></span>Native + FFmpeg</td>
       </tr>
-      <tr><td>Spatial Audio</td><td>Dolby Atmos multichannel decoding</td><td><span class="status-dot native"></span>No special hardware</td></tr>
-      <tr><td>Equalizer</td><td>Parametric, 10-band, AutoEQ import</td><td><span class="status-dot native"></span>Web Audio</td></tr>
+      <tr><td>Equalizer</td><td>Parametric, 20-band, AutoEQ import</td><td><span class="status-dot native"></span>Web Audio</td></tr>
+      <tr><td>Multi-room</td><td>Parallax, synchronized LAN playback</td><td><span class="status-dot native"></span>Local only</td></tr>
       <tr><td>Platforms</td><td>Windows, macOS, Linux</td><td><span class="status-dot native"></span>Cross-platform</td></tr>
-      <tr><td>License</td><td>GNU General Public License v3.0</td><td><span class="status-dot native"></span>Open Source</td></tr>
+      <tr><td>License</td><td>GPL-3.0-only</td><td><span class="status-dot native"></span>Open Source</td></tr>
     </tbody>
   </table>
 </section>
 
-<div class="section-divider"></div>
 
 <!-- Download -->
-<section class="download-section container fade-in" id="download">
+<section class="section container fade-in" id="download">
   <div class="download-content">
     <div class="section-label"><span>//</span> DOWNLOAD</div>
     <h2>Get Astra</h2>
@@ -1939,12 +2282,12 @@ footer {
       <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="dl-card">
         <div class="dl-icon">⊞</div>
         <h3>Windows</h3>
-        <div class="dl-formats">NSIS</div>
+        <div class="dl-formats">NSIS + PORTABLE</div>
       </a>
       <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="dl-card">
         <div class="dl-icon">⌘</div>
         <h3>macOS</h3>
-        <div class="dl-formats">DMG</div>
+        <div class="dl-formats">DMG + ZIP</div>
       </a>
       <a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener" class="dl-card">
         <div class="dl-icon">⟩_</div>
@@ -1986,196 +2329,238 @@ footer {
     <div class="footer-inner">
       <div class="footer-left">© 2026 Astra // Made by <a href="https://github.com/Boof2015" target="_blank" rel="noopener">Boof2015</a></div>
       <ul class="footer-links">
-        <li><a href="/signal/">Signal</a></li>
+        <li><a href="https://github.com/Boof2015/astra" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://github.com/Boof2015/astra/wiki" target="_blank" rel="noopener">Wiki</a></li>
+        <li><a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener">Releases</a></li>
+        <li><a href="https://discord.gg/hsKK8Kr9Nj" target="_blank" rel="noopener">Discord</a></li>
         <li><a href="/prism/">Prism</a></li>
         <li><a href="/xlrc/">XLRC</a></li>
         <li><a href="/xlrcdb/">XLRCDB</a></li>
-        <li><a href="https://github.com/Boof2015/astra" target="_blank" rel="noopener">GitHub</a></li>
-        <li><a href="https://github.com/Boof2015/astra/wiki" target="_blank" rel="noopener">Wiki</a></li>
+        <li><a href="/signal/">Signal</a></li>
         <li><a href="https://ko-fi.com/boof2015" target="_blank" rel="noopener">Ko-fi</a></li>
-        <li><a href="https://github.com/Boof2015/astra/releases" target="_blank" rel="noopener">Releases</a></li>
       </ul>
-    </div>
-    <div class="footer-status">
-      <span class="online-dot"></span> GPL-3.0 // OPEN SOURCE // [EOS]
     </div>
   </div>
 </footer>
 
 <script>
-// Star field
+// Frequency particle field: sparse points on a log-frequency axis,
+// denser toward the low end. Replaces the old starfield.
 (function() {
-  const c = document.getElementById('starfield');
-  const ctx = c.getContext('2d');
-  let stars = [];
-  const N = 180;
-  function resize() { c.width = innerWidth; c.height = innerHeight; }
-  function init() {
-    resize();
-    stars = Array.from({length: N}, () => ({
-      x: Math.random() * c.width,
-      y: Math.random() * c.height,
-      r: Math.random() * 1.1 + 0.2,
-      a: Math.random() * 0.4 + 0.08,
-      s: Math.random() * 0.0003 + 0.0001,
-      p: Math.random() * Math.PI * 2
-    }));
+  const canvas = document.getElementById('particles');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const COUNT = 120;
+  const FPS = 30;
+  const FRAME = 1000 / FPS;
+
+  let pts = [], w = 0, h = 0, raf = null, last = 0;
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = canvas.clientWidth;
+    h = canvas.clientHeight;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
+
+  function seed() {
+    pts = [];
+    for (let i = 0; i < COUNT; i++) {
+      // Bias x toward the left: low frequencies carry more energy.
+      const t = Math.pow(Math.random(), 2.2);
+      pts.push({
+        x: t * w,
+        y: Math.random() * h,
+        r: 0.6 + Math.random() * 1.1,
+        vx: 0.01 + t * 0.05,
+        vy: (Math.random() - 0.5) * 0.02,
+        a: 0.25 + Math.random() * 0.75,
+        phase: Math.random() * Math.PI * 2,
+        rate: 0.4 + Math.random() * 1.2,
+        cyan: Math.random() < 0.35
+      });
+    }
+  }
+
   function draw(t) {
-    ctx.clearRect(0, 0, c.width, c.height);
-    for (const s of stars) {
+    ctx.clearRect(0, 0, w, h);
+    for (const p of pts) {
+      const twinkle = reduced ? 1 : 0.55 + 0.45 * Math.sin(t * 0.001 * p.rate + p.phase);
+      ctx.globalAlpha = p.a * twinkle * 0.3;
+      ctx.fillStyle = p.cyan ? '#38bdf8' : '#f0f0f0';
       ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(180,210,255,${s.a * (Math.sin(t * s.s * 1000 + s.p) * 0.15 + 0.85)})`;
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fill();
     }
-    requestAnimationFrame(draw);
+    ctx.globalAlpha = 1;
   }
-  addEventListener('resize', init);
+
+  function step(t) {
+    raf = requestAnimationFrame(step);
+    if (t - last < FRAME) return;
+    last = t;
+    for (const p of pts) {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x > w + 2) { p.x = -2; p.y = Math.random() * h; }
+      if (p.y < -2) p.y = h + 2;
+      else if (p.y > h + 2) p.y = -2;
+    }
+    draw(t);
+  }
+
+  function start() {
+    if (raf === null && !reduced) { last = 0; raf = requestAnimationFrame(step); }
+  }
+
+  function stop() {
+    if (raf !== null) { cancelAnimationFrame(raf); raf = null; }
+  }
+
+  function init() {
+    resize();
+    seed();
+    if (reduced) draw(0); else start();
+  }
+
   init();
-  requestAnimationFrame(draw);
+
+  let rt;
+  window.addEventListener('resize', function() {
+    clearTimeout(rt);
+    rt = setTimeout(function() { stop(); init(); }, 200);
+  });
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) stop(); else start();
+  });
 })();
 
-// Scroll fade-in
-(function() {
-  const obs = new IntersectionObserver(es => {
-    es.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-  }, { threshold: 0.08 });
-  document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
-})();
+// Scroll reveal
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) entry.target.classList.add('visible');
+  });
+}, { threshold: 0.08 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
-// Auto-play videos when visible on screen (skipped if user prefers reduced motion)
+// Pause videos when off-screen; strip autoplay under reduced motion
 (function() {
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const videos = document.querySelectorAll('video[autoplay]');
-  if (reduceMotion) {
-    videos.forEach(v => { v.removeAttribute('autoplay'); v.pause(); });
+  const vids = document.querySelectorAll('video');
+  if (!vids.length) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    vids.forEach(v => { v.removeAttribute('autoplay'); v.pause(); });
     return;
   }
-  const obs = new IntersectionObserver(entries => {
+  const vo = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.play().catch(() => {});
-      } else {
-        entry.target.pause();
-      }
+      const v = entry.target;
+      if (entry.isIntersecting) { const p = v.play(); if (p) p.catch(() => {}); }
+      else v.pause();
     });
-  }, { threshold: 0.25 });
-  videos.forEach(video => obs.observe(video));
+  }, { threshold: 0.1 });
+  vids.forEach(v => vo.observe(v));
 })();
 
-// Mobile menu toggle
+// Mobile menu
 (function() {
-  const menuBtn = document.getElementById('navMenuBtn');
-  const navLinks = document.getElementById('navLinks');
-  
-  if (!menuBtn || !navLinks) return;
-  
-  menuBtn.addEventListener('click', () => {
-    menuBtn.classList.toggle('active');
-    navLinks.classList.toggle('mobile-open');
+  const btn = document.getElementById('navMenuBtn');
+  const links = document.getElementById('navLinks');
+  if (!btn || !links) return;
+  btn.addEventListener('click', () => {
+    const open = links.classList.toggle('mobile-open');
+    btn.classList.toggle('active', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
-  
-  // Close menu when a link is clicked
-  navLinks.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', () => {
-      menuBtn.classList.remove('active');
-      navLinks.classList.remove('mobile-open');
+  links.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', () => {
+      links.classList.remove('mobile-open');
+      btn.classList.remove('active');
+      btn.setAttribute('aria-expanded', 'false');
     });
   });
 })();
 
-// Platform-detect + dropdown via GitHub API
-(function () {
+// Platform detection + latest release
+(function() {
   const ua = navigator.userAgent;
-  const btn = document.getElementById('hero-download');
+  const plat = navigator.platform || '';
+  let os = 'other';
+  if (/Win/i.test(plat) || /Windows/i.test(ua)) os = 'windows';
+  else if (/Mac/i.test(plat) || /Mac OS X/i.test(ua)) os = 'mac';
+  else if (/Linux/i.test(plat) || /Linux/i.test(ua)) os = 'linux';
+
+  const labels = { windows: 'Download for Windows', mac: 'Download for macOS', linux: 'Download for Linux' };
   const label = document.getElementById('hero-download-label');
-  const dropdown = document.getElementById('dl-dropdown');
-  const releases = 'https://github.com/Boof2015/astra/releases';
-
-  const platformOrder = [
-    { label: 'Windows', ext: ['.exe'], sep: true },
-    { label: 'macOS',   ext: ['.dmg'], sep: true },
-    { label: 'Linux',   ext: ['.AppImage', '.deb', '.rpm', '.tar.gz', '.tar.xz'], sep: true },
-  ];
-
-  function detectPlatform() {
-    if (/Android|iPhone|iPad|iPod/i.test(ua)) return null;
-    if (/Windows/i.test(ua)) return 'Windows';
-    if (/Mac/i.test(ua)) return 'macOS';
-    if (/Linux/i.test(ua)) return 'Linux';
-    return null;
-  }
-
-  function extFor(name) {
-    for (const p of platformOrder)
-      for (const e of p.ext)
-        if (name.toLowerCase().endsWith(e.toLowerCase())) return p.label;
-    return null;
-  }
-
-  function buildDropdown(assets) {
-    const groups = {};
-    for (const a of assets) {
-      const plat = extFor(a.name);
-      if (!plat) continue;
-      (groups[plat] = groups[plat] || []).push(a);
-    }
-    let html = '';
-    for (const p of platformOrder) {
-      if (!groups[p.label]) continue;
-      html += `<div class="dl-sep">${p.label}</div>`;
-      for (const a of groups[p.label]) {
-        const ext = a.name.split('.').pop().toUpperCase();
-        html += `<a href="${a.browser_download_url}" target="_blank" rel="noopener">${ext} &mdash; <span style="opacity:0.5">${a.name}</span></a>`;
-      }
-    }
-    html += `<div class="dl-sep" style="border-top:1px solid var(--border-bright,#2a2a3a);margin-top:0.2rem;padding-top:0.4rem"></div><a href="${releases}" target="_blank" rel="noopener">All releases &rarr;</a>`;
-    dropdown.innerHTML = html;
-  }
-
-  function setMainButton(assets) {
-    const plat = detectPlatform();
-    if (!plat) return;
-    const match = assets.find(a => extFor(a.name) === plat && (plat !== 'Linux' || a.name.endsWith('.AppImage')));
-    if (match) {
-      btn.href = match.browser_download_url;
-      label.textContent = `Download for ${plat}`;
-    } else {
-      btn.href = releases;
-      label.textContent = `Download for ${plat}`;
-    }
-  }
+  if (label && labels[os]) label.textContent = labels[os];
 
   fetch('https://api.github.com/repos/Boof2015/astra/releases/latest')
-    .then(r => r.json())
-    .then(data => {
-      const assets = data.assets || [];
-      setMainButton(assets);
-      buildDropdown(assets);
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(rel => {
+      const assets = rel.assets || [];
+      const pick = (re) => { const a = assets.find(x => re.test(x.name)); return a && a.browser_download_url; };
+
+      const primary = {
+        windows: pick(/\.exe$/i),
+        mac: pick(/\.dmg$/i),
+        linux: pick(/\.AppImage$/i)
+      }[os];
+
+      const btn = document.getElementById('hero-download');
+      if (btn && primary) btn.href = primary;
+
+      const groups = [
+        ['Windows', [[/\.exe$/i, 'Installer (.exe)']]],
+        ['macOS', [[/\.dmg$/i, 'Disk image (.dmg)'], [/\.zip$/i, 'Archive (.zip)']]],
+        ['Linux', [[/\.AppImage$/i, 'AppImage'], [/\.deb$/i, 'Debian (.deb)'], [/\.rpm$/i, 'RPM'], [/\.tar\.gz$/i, 'Tarball']]]
+      ];
+
+      let html = '';
+      groups.forEach(([name, entries]) => {
+        const rows = entries.map(([re, lbl]) => {
+          const url = pick(re);
+          return url ? '<a href="' + url + '">' + lbl + '</a>' : '';
+        }).filter(Boolean).join('');
+        if (rows) html += '<div class="dl-sep">' + name + '</div>' + rows;
+      });
+
+      const dd = document.getElementById('dl-dropdown');
+      if (dd && html) dd.innerHTML = html;
     })
-    .catch(() => { /* leave defaults */ });
+    .catch(() => {});
 })();
 
 function toggleDlDropdown(e) {
+  e.preventDefault();
   e.stopPropagation();
-  document.getElementById('dl-split').classList.toggle('open');
+  const split = document.getElementById('dl-split');
+  if (split) split.classList.toggle('open');
 }
 
-document.addEventListener('click', () => {
-  document.getElementById('dl-split')?.classList.remove('open');
+document.addEventListener('click', function(e) {
+  const split = document.getElementById('dl-split');
+  if (split && !split.contains(e.target)) split.classList.remove('open');
 });
 
 function copyWinget(e) {
   e.preventDefault();
-  navigator.clipboard.writeText('winget install Boof2015.Astra').then(() => {
+  const cmd = 'winget install Boof2015.Astra';
+  const done = () => {
     const el = document.getElementById('winget-confirm');
+    if (!el) return;
     el.textContent = '// copied';
     el.style.opacity = '1';
-    clearTimeout(el._t);
-    el._t = setTimeout(() => el.style.opacity = '0', 2000);
-  });
+    setTimeout(() => { el.style.opacity = '0'; }, 1600);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(cmd).then(done).catch(() => {});
+  }
 }
 </script>
+
 </body>
 </html>
