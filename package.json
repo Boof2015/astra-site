@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:signal && npm run test:xlrcdb",
+    "test": "npm run test:signal && npm run test:xlrcdb && npm run test:prism",
     "test:signal": "node --test docs/signal/signal.test.mjs",
     "test:xlrcdb": "node --test docs/xlrcdb/*.test.mjs",
+    "test:prism": "node --test docs/prism/*.test.mjs",
     "check:signal": "node --check docs/signal/app.js && node --check docs/signal/signal-core.js",
     "check:xlrcdb": "node --check docs/xlrcdb/editor.js && node --check docs/xlrcdb/editor-validation.js"
   }
