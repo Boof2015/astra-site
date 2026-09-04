@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   decodeSignalImage,
@@ -8,10 +9,12 @@ import {
   rasterizeSignal,
 } from './vendor/astra-signal.js';
 import {
+  buildReferenceDestinations,
   buildSearchDestinations,
   buildSignalPageUrl,
   extractSignalLink,
   formatDuration,
+  parseDurationInput,
   selectItunesCandidates,
 } from './signal-core.js';
 
@@ -48,12 +51,21 @@ test('builds a private fragment URL that preserves Unicode and punctuation metad
 test('creates user-initiated search destinations without dropping punctuation', () => {
   const destinations = buildSearchDestinations(payload, 'ca');
   const byId = Object.fromEntries(destinations.map((entry) => [entry.id, new URL(entry.href)]));
-  assert.deepEqual(destinations.map((entry) => entry.id), ['apple', 'spotify', 'youtube', 'bandcamp', 'lastfm']);
-  assert.equal(decodeURIComponent(byId.spotify.pathname), '/search/#iwannadance N!GHT/tracks');
+  assert.deepEqual(destinations.map((entry) => entry.id), ['apple', 'spotify', 'tidal', 'soundcloud', 'youtube', 'bandcamp']);
+  assert.equal(decodeURIComponent(byId.spotify.pathname), '/search/#iwannadance N!GHT');
+  assert.equal(byId.tidal.pathname, '/search');
+  assert.equal(byId.tidal.searchParams.get('q'), '#iwannadance N!GHT');
+  assert.equal(byId.soundcloud.pathname, '/search/sounds');
+  assert.equal(byId.soundcloud.searchParams.get('q'), '#iwannadance N!GHT');
   assert.equal(byId.bandcamp.pathname, '/search');
   assert.equal(byId.bandcamp.searchParams.get('q'), '#iwannadance N!GHT');
   assert.equal(byId.youtube.searchParams.get('q'), '#iwannadance N!GHT');
   assert.equal(destinations[0].href.startsWith('https://music.apple.com/ca/'), true);
+
+  const [lastfm] = buildReferenceDestinations(payload);
+  const lastfmUrl = new URL(lastfm.href);
+  assert.equal(lastfmUrl.pathname, '/search');
+  assert.equal(lastfmUrl.searchParams.get('q'), '#iwannadance N!GHT');
 });
 
 test('accepts only Apple candidates agreeing on artist, title, and duration', () => {
@@ -79,6 +91,51 @@ test('accepts only Apple candidates agreeing on artist, title, and duration', ()
 test('formats whole-second durations for display', () => {
   assert.equal(formatDuration(0), '0:00');
   assert.equal(formatDuration(213), '3:33');
+});
+
+test('parses creator durations without accepting ambiguous or out-of-range input', () => {
+  assert.equal(parseDurationInput('3:33'), 213);
+  assert.equal(parseDurationInput(' 12:05 '), 725);
+  assert.equal(parseDurationInput('3:3'), null);
+  assert.equal(parseDurationInput('3:60'), null);
+  assert.equal(parseDurationInput('0:00'), null);
+  assert.equal(parseDurationInput('1092:16'), null);
+});
+
+test('created metadata produces the same portable image and link payload', () => {
+  const input = { artist: 'Ninajirachi', title: 'WannaCry', durationSec: 193 };
+  const layout = encodeSignal(input);
+  const link = encodeSignalLink(layout.payload);
+  assert.deepEqual(decodeSignalLink(link), layout.payload);
+  assert.deepEqual(layout.payload, { version: 3, type: 'metadata', ...input });
+  assert.deepEqual(decodeSignalImage(rasterizeSignal(layout, { scale: 6 })).payload, layout.payload);
+});
+
+test('keeps the stable Signal entry hooks while presenting the routing interface', async () => {
+  const page = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+  for (const id of [
+    'intro',
+    'result',
+    'drop-zone',
+    'image-input',
+    'link-form',
+    'link-input',
+    'create-form',
+    'create-artist',
+    'create-title',
+    'create-duration',
+    'signal-canvas',
+    'service-grid',
+    'download-button',
+    'share-button',
+    'decode-another',
+  ]) {
+    assert.match(page, new RegExp(`id="${id}"`));
+  }
+  assert.match(page, /Open a Signal/);
+  assert.match(page, /Create a Signal/);
+  assert.match(page, /Choose where to listen/);
+  assert.match(page, /Everything happens locally in this browser/);
 });
 
 test('the vendored browser decoder reads a rendered Unicode Signal image', () => {

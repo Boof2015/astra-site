@@ -67,13 +67,19 @@ export function formatDuration(durationSec) {
   return `${minutes}:${seconds}`;
 }
 
+/** Parse a user-entered M:SS duration into the unsigned 16-bit Signal field. */
+export function parseDurationInput(value) {
+  const match = String(value ?? '').trim().match(/^(\d+):([0-5]\d)$/);
+  if (!match) return null;
+  const total = Number(match[1]) * 60 + Number(match[2]);
+  return Number.isSafeInteger(total) && total > 0 && total <= 65535 ? total : null;
+}
+
 export function buildSearchDestinations(payload, country = 'us') {
   const query = `${payload.title} ${payload.artist}`.trim();
   const encodedQuery = encodeURIComponent(query).replace(/[!'()*]/g, (character) =>
     `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
   );
-  const artist = encodeURIComponent(payload.artist);
-  const title = encodeURIComponent(payload.title);
   const storefront = /^[a-z]{2}$/i.test(country) ? country.toLowerCase() : 'us';
   const withQuery = (baseUrl, parameter) => {
     const url = new URL(baseUrl);
@@ -89,7 +95,17 @@ export function buildSearchDestinations(payload, country = 'us') {
     {
       id: 'spotify',
       label: 'Spotify',
-      href: `https://open.spotify.com/search/${encodedQuery}/tracks`,
+      href: `https://open.spotify.com/search/${encodedQuery}`,
+    },
+    {
+      id: 'tidal',
+      label: 'TIDAL',
+      href: withQuery('https://tidal.com/search', 'q'),
+    },
+    {
+      id: 'soundcloud',
+      label: 'SoundCloud',
+      href: withQuery('https://soundcloud.com/search/sounds', 'q'),
     },
     {
       id: 'youtube',
@@ -101,12 +117,14 @@ export function buildSearchDestinations(payload, country = 'us') {
       label: 'Bandcamp',
       href: withQuery('https://bandcamp.com/search', 'q'),
     },
-    {
-      id: 'lastfm',
-      label: 'Last.fm',
-      href: `https://www.last.fm/music/${artist}/_/${title}`,
-    },
   ];
+}
+
+export function buildReferenceDestinations(payload) {
+  const query = `${payload.title} ${payload.artist}`.trim();
+  const url = new URL('https://www.last.fm/search');
+  url.searchParams.set('q', query);
+  return [{ id: 'lastfm', label: 'Last.fm', href: url.toString() }];
 }
 
 export function scoreItunesCandidate(payload, candidate) {
