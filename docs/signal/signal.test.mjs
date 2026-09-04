@@ -14,7 +14,6 @@ import {
   buildSignalPageUrl,
   extractSignalLink,
   formatDuration,
-  parseDurationInput,
   selectItunesCandidates,
 } from './signal-core.js';
 
@@ -93,26 +92,11 @@ test('formats whole-second durations for display', () => {
   assert.equal(formatDuration(213), '3:33');
 });
 
-test('parses creator durations without accepting ambiguous or out-of-range input', () => {
-  assert.equal(parseDurationInput('3:33'), 213);
-  assert.equal(parseDurationInput(' 12:05 '), 725);
-  assert.equal(parseDurationInput('3:3'), null);
-  assert.equal(parseDurationInput('3:60'), null);
-  assert.equal(parseDurationInput('0:00'), null);
-  assert.equal(parseDurationInput('1092:16'), null);
-});
-
-test('created metadata produces the same portable image and link payload', () => {
-  const input = { artist: 'Ninajirachi', title: 'WannaCry', durationSec: 193 };
-  const layout = encodeSignal(input);
-  const link = encodeSignalLink(layout.payload);
-  assert.deepEqual(decodeSignalLink(link), layout.payload);
-  assert.deepEqual(layout.payload, { version: 3, type: 'metadata', ...input });
-  assert.deepEqual(decodeSignalImage(rasterizeSignal(layout, { scale: 6 })).payload, layout.payload);
-});
-
-test('keeps the stable Signal entry hooks while presenting the routing interface', async () => {
-  const page = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+test('keeps the original Signal interface and stable entry hooks', async () => {
+  const [page, app] = await Promise.all([
+    readFile(new URL('./index.html', import.meta.url), 'utf8'),
+    readFile(new URL('./app.js', import.meta.url), 'utf8'),
+  ]);
   for (const id of [
     'intro',
     'result',
@@ -120,22 +104,19 @@ test('keeps the stable Signal entry hooks while presenting the routing interface
     'image-input',
     'link-form',
     'link-input',
-    'create-form',
-    'create-artist',
-    'create-title',
-    'create-duration',
     'signal-canvas',
     'service-grid',
-    'download-button',
+    'reference-grid',
     'share-button',
     'decode-another',
   ]) {
     assert.match(page, new RegExp(`id="${id}"`));
   }
-  assert.match(page, /Open a Signal/);
-  assert.match(page, /Create a Signal/);
-  assert.match(page, /Choose where to listen/);
-  assert.match(page, /Everything happens locally in this browser/);
+  for (const [, id] of app.matchAll(/document\.querySelector\('#([^']+)'\)/g)) {
+    assert.match(page, new RegExp(`id="${id}"`), `missing #${id} required by app.js`);
+  }
+  assert.match(page, /Decode a Signal/);
+  assert.match(page, /Images and links are decoded in this browser/);
 });
 
 test('the vendored browser decoder reads a rendered Unicode Signal image', () => {

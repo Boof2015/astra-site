@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0f0f0f">
-  <meta name="description" content="Open or create an Astra Signal, then find the track on the music service you already use.">
+  <meta name="description" content="Decode an Astra Signal and find the song on your music service. Images and links are decoded locally in your browser.">
   <meta property="og:title" content="Astra Signal">
-  <meta property="og:description" content="Provider-neutral track sharing. Open a Signal or create one from artist, title, and duration.">
+  <meta property="og:description" content="Decode a Signal locally and choose where to listen.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://astramusic.dev/signal/">
   <title>Astra Signal</title>
@@ -14,180 +14,84 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260903-3">
-  <script type="module" src="app.js?v=20260903-3"></script>
+  <link rel="stylesheet" href="styles.css?v=20260903-4">
+  <script type="module" src="app.js?v=20260903-4"></script>
 </head>
 <body>
-  <div class="topo-grid" aria-hidden="true"></div>
-
   <header class="site-header">
-    <a class="brand" href="/" aria-label="Astra home">
+    <a class="brand" href="/">
       <img src="../assets/astra-logo-layered.svg" alt="">
       <span>ASTRA SIGNAL</span>
     </a>
-    <a class="format-link" href="https://github.com/Boof2015/astra-signal" target="_blank" rel="noopener noreferrer">FORMAT &amp; SOURCE ↗</a>
+    <a class="format-link" href="https://github.com/Boof2015/astra-signal" target="_blank" rel="noopener noreferrer">Format &amp; source ↗</a>
   </header>
 
   <main>
-    <section class="intro" id="intro">
-      <header class="page-heading">
-        <p class="eyebrow">PROVIDER-NEUTRAL TRACK SHARING</p>
-        <h1>Astra Signal</h1>
-        <p>Open a track signal or create one to share. Everything happens locally in this browser.</p>
-      </header>
+    <div class="page-heading">
+      <h1>Decode a Signal</h1>
+      <p>Choose an image or paste a Signal link.</p>
+    </div>
 
-      <div class="tool-shell">
-        <div class="mode-tabs" role="tablist" aria-label="Signal action">
-          <button id="open-tab" type="button" role="tab" aria-selected="true" aria-controls="open-panel" tabindex="0" data-mode="open">
-            <span>01</span> Open a Signal
-          </button>
-          <button id="create-tab" type="button" role="tab" aria-selected="false" aria-controls="create-panel" tabindex="-1" data-mode="create">
-            <span>02</span> Create a Signal
-          </button>
-        </div>
-
-        <section class="mode-panel" id="open-panel" role="tabpanel" aria-labelledby="open-tab">
-          <div class="panel-heading">
-            <div>
-              <p class="section-label">INPUT / EXISTING SIGNAL</p>
-              <h2>Open a Signal</h2>
-            </div>
-            <p>Choose an image or paste a Signal link.</p>
-          </div>
-
-          <div class="open-layout">
-            <button class="drop-zone" id="drop-zone" type="button">
-              <span class="mini-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-              <span class="drop-title">Choose Signal image</span>
-              <span class="drop-copy">PNG, screenshot, camera photo, or paste an image</span>
-              <span class="drop-action">CHOOSE IMAGE →</span>
-            </button>
-            <input id="image-input" type="file" accept="image/*" hidden>
-
-            <div class="link-panel">
-              <div>
-                <p class="section-label">SIGNAL LINK</p>
-                <h3>Paste a link or frame</h3>
-                <p>Web links and raw <code>astra:signal:v3:</code> frames both work.</p>
-              </div>
-              <form class="link-form" id="link-form">
-                <label class="sr-only" for="link-input">Astra Signal link</label>
-                <input
-                  id="link-input"
-                  type="text"
-                  inputmode="url"
-                  autocomplete="off"
-                  spellcheck="false"
-                  placeholder="astra:signal:v3:…"
-                >
-                <button type="submit">OPEN</button>
-              </form>
-            </div>
-          </div>
-
-          <p class="input-error" id="input-error" role="alert" aria-live="polite"></p>
-          <div class="local-status">
-            <span><i class="status-dot ready" id="status-dot" aria-hidden="true"></i><b id="source-status">Ready for local input</b></span>
-            <span class="privacy-copy">Images and links are decoded in this browser</span>
-          </div>
-        </section>
-
-        <section class="mode-panel" id="create-panel" role="tabpanel" aria-labelledby="create-tab" hidden>
-          <div class="panel-heading">
-            <div>
-              <p class="section-label">INPUT / NEW SIGNAL</p>
-              <h2>Create a Signal</h2>
-            </div>
-            <p>Three fields become one portable image and link.</p>
-          </div>
-
-          <form class="create-form" id="create-form">
-            <label class="field field-artist" for="create-artist">
-              <span>ARTIST</span>
-              <input id="create-artist" name="artist" type="text" autocomplete="off" required placeholder="Artist name">
-            </label>
-            <label class="field field-title" for="create-title">
-              <span>TRACK TITLE</span>
-              <input id="create-title" name="title" type="text" autocomplete="off" required placeholder="Track title">
-            </label>
-            <label class="field field-duration" for="create-duration">
-              <span>DURATION</span>
-              <input id="create-duration" name="duration" type="text" inputmode="numeric" autocomplete="off" required placeholder="3:33" aria-describedby="duration-hint">
-              <small id="duration-hint">MM:SS</small>
-            </label>
-            <button class="generate-button" type="submit">GENERATE SIGNAL →</button>
-          </form>
-
-          <p class="input-error" id="create-error" role="alert" aria-live="polite"></p>
-          <div class="local-status">
-            <span><i class="status-dot ready" aria-hidden="true"></i><b>Generated locally</b></span>
-            <span class="privacy-copy">No account, upload, or catalog database required</span>
-          </div>
-        </section>
+    <section class="signal-stage">
+      <div id="intro">
+        <button class="drop-zone" id="drop-zone" type="button">
+          <span class="mini-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="drop-title">Choose Signal image</span>
+          <span class="drop-copy">PNG, screenshot, or camera photo</span>
+        </button>
+        <input id="image-input" type="file" accept="image/*" hidden>
       </div>
-    </section>
 
-    <section class="result" id="result" hidden>
-      <header class="result-header">
-        <div>
-          <p class="section-label" id="result-source">SIGNAL DECODED</p>
-          <h1>Choose where to listen</h1>
+      <section class="result" id="result" hidden>
+        <div class="signal-frame">
+          <canvas id="signal-canvas" aria-label="Decoded Astra Signal"></canvas>
+        </div>
+        <div class="result-copy">
+          <h2 id="track-title"></h2>
+          <p id="track-artist"></p>
+          <span id="track-duration"></span>
         </div>
         <div class="result-actions">
-          <button id="download-button" type="button">Download PNG</button>
           <button id="share-button" type="button">Share link</button>
-          <button id="decode-another" type="button">Open another</button>
-        </div>
-      </header>
-
-      <div class="resolved-track">
-        <div class="carrier-panel">
-          <div class="signal-frame">
-            <canvas id="signal-canvas" aria-label="Astra Signal"></canvas>
-          </div>
+          <button id="decode-another" type="button">Clear</button>
         </div>
 
-        <div class="track-panel">
-          <p class="track-artist" id="track-artist"></p>
-          <h2 class="track-title" id="track-title"></h2>
-          <p class="track-duration"><span>DURATION</span><strong id="track-duration"></strong></p>
-          <p class="metadata-warning" id="metadata-warning" role="status" hidden>Signal capacity shortened the supplied metadata. The values shown here are what the image and link contain.</p>
-        </div>
-      </div>
-
-      <section class="service-section" aria-labelledby="service-heading">
-        <div class="service-heading">
-          <div>
-            <p class="section-label">DESTINATIONS</p>
-            <h2 id="service-heading">Find this track</h2>
-          </div>
-          <p>Each service searches with the artist and title stored in this Signal.</p>
-        </div>
         <div class="service-grid" id="service-grid"></div>
-
         <div class="reference-row">
-          <span>Looking for listening data instead?</span>
+          <span>Listening data</span>
           <div id="reference-grid"></div>
         </div>
-      </section>
 
-      <details class="catalog-tools">
-        <summary><span>Verify the recording against Apple’s catalog</span><b>OPTIONAL +</b></summary>
         <div class="catalog-lookup">
           <div>
-            <strong>Check recording identity</strong>
-            <p>Only returns results whose artist, title, and duration agree with the Signal.</p>
+            <strong>Exact Apple catalog lookup</strong>
+            <p>Only shows recordings matching artist, title, and duration.</p>
           </div>
           <button class="lookup-button" id="lookup-button" type="button">Check catalog</button>
         </div>
         <div class="lookup-results" id="lookup-results" aria-live="polite"></div>
-      </details>
+      </section>
     </section>
-  </main>
 
-  <footer class="site-footer">
-    <span>ASTRA SIGNAL / V3</span>
-    <span>PROVIDER-NEUTRAL TRACK SHARING</span>
-  </footer>
+    <form class="link-form" id="link-form">
+      <label class="sr-only" for="link-input">Astra Signal link</label>
+      <input
+        id="link-input"
+        type="text"
+        inputmode="url"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="astra:signal:v3:…"
+      >
+      <button type="submit">Decode link</button>
+    </form>
+
+    <p class="input-error" id="input-error" role="alert" aria-live="polite"></p>
+    <p class="local-status">
+      <span class="status-dot ready" id="status-dot" aria-hidden="true"></span>
+      <span id="source-status">Waiting for local input</span>
+      <span class="privacy-copy">Images and links are decoded in this browser.</span>
+    </p>
+  </main>
 </body>
 </html>

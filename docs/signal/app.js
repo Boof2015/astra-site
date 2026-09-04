@@ -11,81 +11,34 @@ import {
   buildSignalPageUrl,
   extractSignalLink,
   formatDuration,
-  parseDurationInput,
   selectItunesCandidates,
 } from './signal-core.js';
 
 const MAX_IMAGE_DIM = 2048;
 const ITUNES_TIMEOUT_MS = 8000;
-const originalTitle = document.title;
 
 const intro = document.querySelector('#intro');
 const resultSection = document.querySelector('#result');
-const modeTabs = [...document.querySelectorAll('[role="tab"][data-mode]')];
-const openPanel = document.querySelector('#open-panel');
-const createPanel = document.querySelector('#create-panel');
 const dropZone = document.querySelector('#drop-zone');
 const imageInput = document.querySelector('#image-input');
 const linkForm = document.querySelector('#link-form');
 const linkInput = document.querySelector('#link-input');
 const inputError = document.querySelector('#input-error');
-const createForm = document.querySelector('#create-form');
-const createArtist = document.querySelector('#create-artist');
-const createTitle = document.querySelector('#create-title');
-const createDuration = document.querySelector('#create-duration');
-const createError = document.querySelector('#create-error');
 const statusDot = document.querySelector('#status-dot');
 const sourceStatus = document.querySelector('#source-status');
 const decodeAnother = document.querySelector('#decode-another');
-const resultSource = document.querySelector('#result-source');
 const signalCanvas = document.querySelector('#signal-canvas');
 const trackTitle = document.querySelector('#track-title');
 const trackArtist = document.querySelector('#track-artist');
 const trackDuration = document.querySelector('#track-duration');
-const metadataWarning = document.querySelector('#metadata-warning');
 const serviceGrid = document.querySelector('#service-grid');
 const referenceGrid = document.querySelector('#reference-grid');
-const downloadButton = document.querySelector('#download-button');
 const shareButton = document.querySelector('#share-button');
 const lookupButton = document.querySelector('#lookup-button');
 const lookupResults = document.querySelector('#lookup-results');
 
 let activePayload = null;
 let activeSignalLink = null;
-let activeOrigin = 'open';
-let currentMode = 'open';
-
-function reducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-function setMode(mode, { focus = false } = {}) {
-  currentMode = mode === 'create' ? 'create' : 'open';
-  openPanel.hidden = currentMode !== 'open';
-  createPanel.hidden = currentMode !== 'create';
-  for (const tab of modeTabs) {
-    const selected = tab.dataset.mode === currentMode;
-    tab.setAttribute('aria-selected', String(selected));
-    tab.tabIndex = selected ? 0 : -1;
-  }
-  if (focus) {
-    const target = currentMode === 'create' ? createArtist : dropZone;
-    requestAnimationFrame(() => target.focus());
-  }
-}
-
-function metadataWasShortened(input, encoded) {
-  return input.artist !== encoded.artist || input.title !== encoded.title;
-}
-
-function safeFilenamePart(value) {
-  const cleaned = String(value ?? '')
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase();
-  return cleaned || 'track';
-}
 
 function browserCountry() {
   const region = String(navigator.language || '').split('-')[1];
@@ -100,7 +53,7 @@ function setInputError(message = '') {
     ? 'Input rejected'
     : activePayload
       ? 'Valid Signal decoded locally'
-      : 'Ready for local input';
+      : 'Waiting for local input';
 }
 
 function setDropBusy(busy) {
@@ -133,52 +86,32 @@ function renderServices(payload) {
     link.href = service.href;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.setAttribute('aria-label', `Search for this track on ${service.label}`);
-
-    const name = document.createElement('strong');
-    name.textContent = service.label;
-    const action = document.createElement('span');
-    action.className = 'service-action';
-    action.textContent = 'Search ↗';
-    link.append(name, action);
+    link.textContent = service.label;
     serviceGrid.append(link);
   }
 
-  if (referenceGrid) {
-    referenceGrid.replaceChildren();
-    for (const service of buildReferenceDestinations(payload)) {
-      const link = document.createElement('a');
-      link.href = service.href;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = `${service.label} ↗`;
-      referenceGrid.append(link);
-    }
+  referenceGrid.replaceChildren();
+  for (const service of buildReferenceDestinations(payload)) {
+    const link = document.createElement('a');
+    link.href = service.href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = `${service.label} ↗`;
+    referenceGrid.append(link);
   }
 }
 
-function showPayload(payload, signalLink, {
-  updateLocation = true,
-  origin = 'open',
-  shortened = false,
-} = {}) {
+function showPayload(payload, signalLink, { updateLocation = true } = {}) {
   activePayload = payload;
   activeSignalLink = signalLink;
-  activeOrigin = origin;
   renderSignal(payload);
   renderServices(payload);
   trackTitle.textContent = payload.title || 'Untitled track';
   trackArtist.textContent = payload.artist || 'Unknown artist';
   trackDuration.textContent = formatDuration(payload.durationSec);
-  resultSource.textContent = origin === 'create' ? 'SIGNAL CREATED' : 'SIGNAL DECODED';
-  decodeAnother.textContent = origin === 'create' ? 'Create another' : 'Open another';
-  downloadButton.classList.toggle('primary-action', origin === 'create');
-  shareButton.classList.toggle('primary-action', origin !== 'create');
-  metadataWarning.hidden = !shortened;
-  document.title = `${payload.title || 'Untitled track'} by ${payload.artist || 'Unknown artist'} | Astra Signal`;
   lookupResults.replaceChildren();
   lookupButton.disabled = false;
-  lookupButton.textContent = 'Check catalog';
+  lookupButton.textContent = 'Check Apple catalog';
   intro.hidden = true;
   resultSection.hidden = false;
   setInputError();
@@ -189,7 +122,7 @@ function showPayload(payload, signalLink, {
     url.hash = signalLink;
     history.replaceState(null, '', url);
   }
-  window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function decodeLinkValue(value, options) {
@@ -319,47 +252,6 @@ function renderCatalogMatches(matches) {
   }
 }
 
-for (const tab of modeTabs) {
-  tab.addEventListener('click', () => setMode(tab.dataset.mode));
-  tab.addEventListener('keydown', (event) => {
-    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-    event.preventDefault();
-    setMode(currentMode === 'open' ? 'create' : 'open');
-    modeTabs.find((candidate) => candidate.dataset.mode === currentMode)?.focus();
-  });
-}
-
-createForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  createError.textContent = '';
-
-  const artist = createArtist.value.trim();
-  const title = createTitle.value.trim();
-  const durationSec = parseDurationInput(createDuration.value);
-  if (!artist || !title) {
-    createError.textContent = 'Enter both the artist and track title.';
-    (!artist ? createArtist : createTitle).focus();
-    return;
-  }
-  if (durationSec === null) {
-    createError.textContent = 'Enter the duration as minutes and seconds, such as 3:33.';
-    createDuration.focus();
-    return;
-  }
-
-  try {
-    const input = { artist, title, durationSec };
-    const layout = encodeSignal(input);
-    const signalLink = encodeSignalLink(layout.payload);
-    showPayload(layout.payload, signalLink, {
-      origin: 'create',
-      shortened: metadataWasShortened(input, layout.payload),
-    });
-  } catch {
-    createError.textContent = 'That metadata could not be encoded into a Signal.';
-  }
-});
-
 dropZone.addEventListener('click', () => imageInput.click());
 imageInput.addEventListener('change', async () => {
   const file = imageInput.files?.[0];
@@ -405,7 +297,6 @@ dropZone.addEventListener('drop', async (event) => {
 });
 
 document.addEventListener('paste', async (event) => {
-  if (currentMode !== 'open' || !resultSection.hidden) return;
   if (document.activeElement === linkInput) return;
   const file = [...(event.clipboardData?.files ?? [])].find((candidate) => candidate.type.startsWith('image/'));
   if (!file) return;
@@ -430,40 +321,14 @@ linkForm.addEventListener('submit', (event) => {
 });
 
 decodeAnother.addEventListener('click', () => {
-  const nextMode = activeOrigin;
   activePayload = null;
   activeSignalLink = null;
   resultSection.hidden = true;
   intro.hidden = false;
   linkInput.value = '';
-  metadataWarning.hidden = true;
-  if (nextMode === 'create') createForm.reset();
-  document.title = originalTitle;
   setInputError();
-  setMode(nextMode, { focus: true });
   history.replaceState(null, '', `${location.pathname}${location.search}`);
-  window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
-});
-
-downloadButton.addEventListener('click', () => {
-  if (!activePayload) return;
-  const previousLabel = downloadButton.textContent;
-  signalCanvas.toBlob((blob) => {
-    if (!blob) {
-      downloadButton.textContent = 'Could not download';
-      return;
-    }
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = `astra-signal-${safeFilenamePart(activePayload.artist)}-${safeFilenamePart(activePayload.title)}.png`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-    downloadButton.textContent = 'PNG downloaded';
-    window.setTimeout(() => { downloadButton.textContent = previousLabel; }, 1400);
-  }, 'image/png');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
 shareButton.addEventListener('click', async () => {
@@ -475,7 +340,7 @@ shareButton.addEventListener('click', async () => {
     } else {
       await navigator.clipboard.writeText(url);
       shareButton.textContent = 'Link copied';
-      window.setTimeout(() => { shareButton.textContent = 'Share link'; }, 1400);
+      window.setTimeout(() => { shareButton.textContent = 'Share Signal'; }, 1400);
     }
   } catch (error) {
     if (error?.name !== 'AbortError') shareButton.textContent = 'Could not share';

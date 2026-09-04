@@ -67,14 +67,6 @@ export function formatDuration(durationSec) {
   return `${minutes}:${seconds}`;
 }
 
-/** Parse a user-entered M:SS duration into the unsigned 16-bit Signal field. */
-export function parseDurationInput(value) {
-  const match = String(value ?? '').trim().match(/^(\d+):([0-5]\d)$/);
-  if (!match) return null;
-  const total = Number(match[1]) * 60 + Number(match[2]);
-  return Number.isSafeInteger(total) && total > 0 && total <= 65535 ? total : null;
-}
-
 export function buildSearchDestinations(payload, country = 'us') {
   const query = `${payload.title} ${payload.artist}`.trim();
   const encodedQuery = encodeURIComponent(query).replace(/[!'()*]/g, (character) =>
