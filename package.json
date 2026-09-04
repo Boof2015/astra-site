@@ -3,11 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:signal && npm run test:xlrcdb && npm run test:prism",
+    "build": "npm run build:relay",
+    "build:relay": "node scripts/build-relay.mjs",
+    "test": "npm run test:signal && npm run test:xlrcdb && npm run test:prism && npm run test:relay",
     "test:signal": "node --test docs/signal/signal.test.mjs",
     "test:xlrcdb": "node --test docs/xlrcdb/*.test.mjs",
     "test:prism": "node --test docs/prism/*.test.mjs",
+    "test:relay": "node --test test/relay.test.mjs",
     "check:signal": "node --check docs/signal/app.js && node --check docs/signal/signal-core.js",
-    "check:xlrcdb": "node --check docs/xlrcdb/editor.js && node --check docs/xlrcdb/editor-validation.js"
+    "check:xlrcdb": "node --check docs/xlrcdb/editor.js && node --check docs/xlrcdb/editor-validation.js",
+    "check:relay": "node --check relay/app.js && node --check relay/transition.js && npm run build:relay && npm run test:relay",
+    "check": "npm run check:signal && npm run check:xlrcdb && npm run check:relay && npm test"
   }
 }
