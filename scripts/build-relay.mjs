@@ -75,8 +75,8 @@ function about() {
   return `<section class="about" aria-label="About Astral Relay">
     <article>
       <p class="section-label">01 / RELAY</p>
-      <h2>One track.<br>Every Wednesday.</h2>
-      <p>Astral Relay is one track, selected each week, presented through motion design and music visualization.</p>
+      <h2>One track.<br>Wednesday + Saturday.</h2>
+      <p>Astral Relay selects one track every Wednesday and Saturday, presented through motion design and music visualization.</p>
     </article>
     <article>
       <p class="section-label">02 / VISUALS</p>
@@ -169,8 +169,8 @@ function indexPage(records) {
   </main>
   ${footer()}`;
   return documentShell({
-    title: 'Astral Relay — Weekly Rotation Archive',
-    description: `Astral Relay rotation ${padRotation(current.number)}: ${current.title} by ${current.artist}. Browse the weekly archive and listen through Signal.`,
+    title: 'Astral Relay — Rotation Archive',
+    description: `Astral Relay rotation ${padRotation(current.number)}: ${current.title} by ${current.artist}. Browse the twice-weekly archive and listen through Signal.`,
     canonical: 'https://astramusic.dev/relay/',
     image: `https://astramusic.dev/relay/${current.artwork}`,
     body,

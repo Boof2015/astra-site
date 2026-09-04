@@ -2,7 +2,7 @@
 
 This directory is the editable source for `astramusic.dev/relay/`. The generated GitHub Pages output lives in `docs/relay/`; do not hand-edit generated files.
 
-## Wednesday update
+## Wednesday and Saturday updates
 
 1. In Relay Studio, use **Copy web JSON** after entering the rotation number and publication date.
 2. Paste the copied object into the array in `rotations.json`.

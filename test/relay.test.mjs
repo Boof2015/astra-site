@@ -122,7 +122,9 @@ test('generates a semantic index and permanent page with canonical metadata', as
     assert.match(index, /<main id="relay-view">/);
     assert.match(index, /astra-relay-theme/);
     assert.ok(index.includes(`href="/relay/${currentRotation}/"`));
-    assert.match(index, /Astral Relay is one track, selected each week/);
+    assert.match(index, /Astral Relay selects one track every Wednesday and Saturday/);
+    assert.match(index, /Astral Relay — Rotation Archive/);
+    assert.match(index, /Browse the twice-weekly archive/);
     assert.ok(detail.includes(`rel="canonical" href="https://astramusic.dev/relay/${currentRotation}/"`));
     assert.ok(detail.includes(`data-transition-art data-rotation="${current.number}"`));
     assert.ok(detail.includes(`property="og:image" content="https://astramusic.dev/relay/${current.artwork}"`));
