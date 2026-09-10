@@ -9,5 +9,15 @@
     "releaseYear": 2026,
     "durationSeconds": 219,
     "artwork": "assets/artwork/001.webp"
+  },
+  {
+    "number": 2,
+    "publishedOn": "2026-09-09",
+    "artist": "9Lana",
+    "title": "BLUE MOON",
+    "album": "BLUE MOON",
+    "releaseYear": 2026,
+    "durationSeconds": 204,
+    "artwork": "assets/artwork/002.webp"
   }
 ]
