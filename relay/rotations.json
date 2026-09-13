@@ -19,5 +19,15 @@
     "releaseYear": 2026,
     "durationSeconds": 204,
     "artwork": "assets/artwork/002.webp"
+  },
+  {
+    "number": 3,
+    "publishedOn": "2026-09-12",
+    "artist": "Derivakat",
+    "title": "Downfall",
+    "album": "Downfall",
+    "releaseYear": 2025,
+    "durationSeconds": 173,
+    "artwork": "assets/artwork/003.webp"
   }
 ]
