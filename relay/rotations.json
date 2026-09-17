@@ -29,5 +29,16 @@
     "releaseYear": 2025,
     "durationSeconds": 173,
     "artwork": "assets/artwork/003.webp"
+  },
+  {
+    "number": 4,
+    "publishedOn": "2026-09-16",
+    "artist": "usedcvnt",
+    "title": "it's 2am, i can't sleep",
+    "featureLine": "feat. enkei",
+    "album": "ultraviolet",
+    "releaseYear": 2023,
+    "durationSeconds": 115,
+    "artwork": "assets/artwork/004.webp"
   }
 ]
