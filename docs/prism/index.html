@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Prism — Real-time Audio Analysis &amp; Metering</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<meta name="description" content="Prism is a free, open-source audio analyzer and meter rack for desktop, DAW, and terminal. Seven real-time analyzers powered by native C++ DSP.">
+<meta name="description" content="Prism is a free, open-source audio analyzer and meter rack for desktop, DAW, and terminal. Eight real-time analyzers powered by native C++ DSP.">
 <meta name="theme-color" content="#090c11">
 <meta property="og:title" content="Prism — Real-time Audio Analysis &amp; Metering">
-<meta property="og:description" content="Seven real-time analyzers. One native engine. Desktop, DAW, and terminal.">
+<meta property="og:description" content="Eight real-time analyzers. One native engine. Desktop, DAW, and terminal.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://astramusic.dev/prism/">
 <meta property="og:site_name" content="Prism">
@@ -20,7 +20,7 @@
 <meta property="og:image:alt" content="Prism logo on a blue and violet gradient">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Prism — Real-time Audio Analysis &amp; Metering">
-<meta name="twitter:description" content="Seven real-time analyzers. One native engine. Desktop, DAW, and terminal.">
+<meta name="twitter:description" content="Eight real-time analyzers. One native engine. Desktop, DAW, and terminal.">
 <meta name="twitter:image" content="https://astramusic.dev/prism/assets/prism-social.png">
 <meta name="twitter:image:alt" content="Prism logo on a blue and violet gradient">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -60,9 +60,9 @@ window.setTimeout(function () {
 
 <header class="hero" id="top">
   <div class="hero-copy container">
-    <div class="eyebrow">Open source <span>// v0.3.0 beta</span></div>
+    <div class="eyebrow">Open source <span>// v0.4.0-beta</span></div>
     <h1>Real-time audio analysis and metering, wherever you work.</h1>
-    <p class="hero-description">Seven analyzers. One native engine. Monitor system audio or an input on the desktop, inspect a track inside your DAW, or keep an eye on the signal from the terminal.</p>
+    <p class="hero-description">Eight analyzers. One native engine. Monitor system audio or an input on the desktop, inspect a track inside your DAW, or keep an eye on the signal from the terminal.</p>
     <div class="hero-actions">
       <div class="download-split" id="download-split">
         <a class="button button-primary" id="hero-download-link" href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener"><span id="hero-download-label">Download Prism</span></a>
@@ -74,7 +74,7 @@ window.setTimeout(function () {
       <a class="button button-secondary" href="https://github.com/Boof2015/prism" target="_blank" rel="noopener">Source code ↗</a>
     </div>
     <div class="hero-meta" aria-label="Product details">
-      <span>Windows · macOS · Linux</span><span>VST3 · AU</span><span>GPL-3.0</span>
+      <span>Windows · macOS · Linux</span><span>VST3 · AU · CLAP</span><span>GPL-3.0</span>
     </div>
   </div>
 
@@ -85,7 +85,7 @@ window.setTimeout(function () {
       </video>
     </div>
     <div class="hero-readouts" aria-label="Analysis capabilities">
-      <div><span class="readout">07 analyzers</span><span class="readout-detail">One configurable rack</span></div>
+      <div><span class="readout">08 analyzers</span><span class="readout-detail">One configurable rack</span></div>
       <div><span class="readout">Native C++</span><span class="readout-detail">Shared DSP implementations</span></div>
       <div><span class="readout">BS.1770</span><span class="readout-detail">Loudness and true peak</span></div>
       <div><span class="readout">.prsm / .iro</span><span class="readout-detail">Shareable profiles and themes</span></div>
@@ -97,17 +97,18 @@ window.setTimeout(function () {
   <section class="section container reveal" id="analyzers">
     <span class="anchor-alias" id="capture" aria-hidden="true"></span>
     <div class="section-head">
-      <div><div class="section-label"><span>//</span> Analysis</div><h2>Seven analyzers. One engine.</h2></div>
+      <div><div class="section-label"><span>//</span> Analysis</div><h2>Eight analyzers. One engine.</h2></div>
       <p>Build a rack around the signal, not the other way around. Every analyzer is independently configurable, resizable, rotatable where supported, and available across Prism’s desktop, plugin, and terminal surfaces.</p>
     </div>
     <div class="analyzer-grid">
-      <article class="analyzer-card analyzer-card--wide"><span class="feature-tag">01 / FFT</span><h3>Spectrum Analyzer</h3><p>Calibrated dBFS levels, FFT sizes from 1024 to 16384, Log/Mel/Linear scales, spectral tilt, heatmap and fill modes, plus peak frequency and pitch readouts.</p></article>
+      <article class="analyzer-card"><span class="feature-tag">01 / FFT</span><h3>Spectrum Analyzer</h3><p>Calibrated spectra and pitch readouts, with reference-track overlays, difference views, and level matching.</p></article>
       <article class="analyzer-card"><span class="feature-tag">02 / Time</span><h3>Oscilloscope</h3><p>Stable time-domain views with fundamental-frequency pitch locking and sub-sample triggering.</p></article>
       <article class="analyzer-card"><span class="feature-tag">03 / Phase</span><h3>Vectorscope</h3><p>XY, Polar, and M/S Linear stereo analysis with calibrated references and optional multiband RGB.</p></article>
-      <article class="analyzer-card"><span class="feature-tag">04 / Time × Frequency</span><h3>Spectrogram</h3><p>Classic and frequency-reassigned views across Log, Mel, and Linear scales with stereo-energy analysis.</p></article>
-      <article class="analyzer-card"><span class="feature-tag">05 / Ballistics</span><h3>VU Meter</h3><p>300 ms metering, adjustable 0 VU calibration, stereo correlation, and needle or bar displays.</p></article>
-      <article class="analyzer-card"><span class="feature-tag">06 / Loudness</span><h3>Loudness Meter</h3><p>ITU-R BS.1770 momentary, short-term, and integrated LUFS with true-peak activity.</p></article>
-      <article class="analyzer-card analyzer-card--wide"><span class="feature-tag">07 / History</span><h3>Waveform</h3><p>Scrolling mono or stereo history with transient-preserving sampling and optional multiband energy. Spectrum, Spectrogram, Oscilloscope, and Waveform also provide interactive measurement overlays.</p></article>
+      <article class="analyzer-card"><span class="feature-tag">04 / Spectrum History</span><h3>Waterfall</h3><p>Watch spectra unfold over 1–30 seconds, with adjustable ridge density and theme or heat colors.</p></article>
+      <article class="analyzer-card"><span class="feature-tag">05 / Time × Frequency</span><h3>Spectrogram</h3><p>Classic and frequency-reassigned views across Log, Mel, and Linear scales with stereo-energy analysis.</p></article>
+      <article class="analyzer-card"><span class="feature-tag">06 / Ballistics</span><h3>VU Meter</h3><p>300 ms metering, adjustable 0 VU calibration, stereo correlation, and needle or bar displays.</p></article>
+      <article class="analyzer-card"><span class="feature-tag">07 / Loudness</span><h3>Loudness Meter</h3><p>ITU-R BS.1770 momentary, short-term, and integrated LUFS with true-peak activity.</p></article>
+      <article class="analyzer-card"><span class="feature-tag">08 / History</span><h3>Waveform</h3><p>Scrolling mono or stereo history with transient-preserving sampling and optional multiband energy.</p></article>
     </div>
     <figure class="config-reel">
       <video autoplay muted loop playsinline preload="metadata" poster="assets/prism-configs-poster.png" aria-label="Prism switching between compact, wide, and multi-analyzer rack configurations">
@@ -134,21 +135,23 @@ window.setTimeout(function () {
             <div><dt>Windows</dt><dd>WASAPI loopback capture</dd></div>
             <div><dt>Linux</dt><dd>PulseAudio monitor sources; U8, S16, S24, S32, and F32 input normalization</dd></div>
             <div><dt>Device inputs</dt><dd>Separate low-latency AudioWorklet capture path</dd></div>
+            <div><dt>Channel routing</dt><dd>Independent Left/Right routing, live channel activity, and saved routes per source</dd></div>
             <div><dt>Clocking</dt><dd>Analysis follows the active device sample rate</dd></div>
           </dl>
         </article>
         <article class="workflow-surface">
           <div class="surface-summary">
-            <div class="surface-kicker">DAW / VST3 · AU</div>
+            <div class="surface-kicker">DAW / VST3 · AU · CLAP</div>
             <h3>One plugin per analyzer</h3>
-            <p>All seven analyzers are available as mono or stereo pass-through plugins. Prism does not modify the host audio buffer, and analyzer state is stored with the project.</p>
+            <p>Use any of the eight analyzers inside your DAW, or send a track or bus to the standalone app with Prism Bridge. Your audio passes through unchanged.</p>
           </div>
           <dl class="technical-list">
-            <div><dt>Formats</dt><dd>VST3 on Windows, macOS, and Linux; AU on macOS</dd></div>
+            <div><dt>Formats</dt><dd>VST3 and CLAP on Windows, macOS, and Linux; AU on macOS</dd></div>
             <div><dt>RT callback</dt><dd>Copies samples into a lock-free FIFO</dd></div>
             <div><dt>Analysis</dt><dd>FFT, loudness, and rendering work happens outside the real-time audio thread</dd></div>
             <div><dt>Signal path</dt><dd>Pure pass-through; host audio remains unmodified</dd></div>
             <div><dt>State</dt><dd>Scope configuration serialized into project/plugin state</dd></div>
+            <div><dt>Bridge timing</dt><dd>DAW-synced Bars + Beats or Seconds rulers in Waveform and Spectrogram</dd></div>
           </dl>
         </article>
         <article class="workflow-surface workflow-surface--media">
@@ -160,7 +163,7 @@ window.setTimeout(function () {
           <dl class="technical-list">
             <div><dt>Rendering</dt><dd>60 FPS default; experimental 120 FPS mode</dd></div>
             <div><dt>Compatibility</dt><dd>256-color mode up to 60 FPS; basic ANSI safe mode up to 30 FPS</dd></div>
-            <div><dt>Analysis</dt><dd>All seven scopes, including reassigned spectrogram and multiband modes</dd></div>
+            <div><dt>Analysis</dt><dd>All eight scopes, including Waterfall, reassigned spectrogram, and multiband modes</dd></div>
             <div><dt>Memory</dt><dd>Approximately 35 MB in typical use</dd></div>
           </dl>
           <div class="surface-media"><video autoplay muted loop playsinline preload="metadata" poster="assets/prism-tui-poster.png" aria-label="Prism terminal interface analyzing live audio"><source src="assets/prism-tui.mp4" type="video/mp4"></video></div>
@@ -168,7 +171,7 @@ window.setTimeout(function () {
       </div>
       <div class="rolling-panel" id="rolling">
         <div class="buffer-readout" aria-label="Available rolling capture lengths"><span><strong>05</strong>sec</span><span><strong>10</strong>sec</span><span><strong>30</strong>sec</span><span><strong>60</strong>sec</span></div>
-        <div class="feature-copy"><div class="section-label"><span>//</span> Rolling capture</div><h2>Forgot to record that? Prism didn't.</h2><p>Prism continuously retains the selected amount of PCM audio in memory. Drag the buffer out as a mono or stereo, 16-bit RIFF/WAV file without starting a recording beforehand.</p><div class="inline-specs"><span>Source rates to 384 kHz</span><span>Direct file drag-out</span></div></div>
+        <div class="feature-copy"><div class="section-label"><span>//</span> Rolling capture</div><h2>Forgot to record that? Prism didn't.</h2><p>Keep the last 5–60 seconds of audio ready to drag out as a WAV. No need to start recording beforehand.</p><div class="inline-specs"><span>Source rates to 384 kHz</span><span>16-bit PCM · 32-bit float</span><span>Direct file drag-out</span></div></div>
       </div>
     </div>
   </section>
@@ -184,7 +187,7 @@ window.setTimeout(function () {
     <div class="custom-grid">
       <article class="custom-card"><span class="filetype">.prsm</span><h3>Profiles</h3><p>Save visible scopes, rack layout, analyzer settings, window state, and popout positions as a shareable workspace.</p></article>
       <article class="custom-card"><span class="filetype">.iro</span><h3>Themes</h3><p>Edit interface, control, scope, gradient, guide, label, meter, and overlay colors in a human-readable theme file.</p></article>
-      <article class="custom-card"><span class="filetype">WINDOW</span><h3>Overlays</h3><p>Run the rack and popouts on solid, blurred, or clear backgrounds, then pin the scopes above the applications you use.</p></article>
+      <article class="custom-card"><span class="filetype">WINDOW</span><h3>Overlays and docking</h3><p>Pin scopes above your apps with solid, blurred, or clear backgrounds. On Windows, dock the rack and reserve its screen space.</p></article>
     </div>
     <figure class="theme-reel">
       <video autoplay muted loop playsinline preload="metadata" poster="assets/prism-themes-poster.png" aria-label="Prism analyzers changing between built-in and user-created themes"><source src="assets/prism-themes.mp4" type="video/mp4"></video>
@@ -206,23 +209,25 @@ window.setTimeout(function () {
         <div class="spec-row"><span class="stat-label">Spectrum</span><span class="spec-value">Calibrated dBFS magnitude, 1024–16384 FFT, Log/Mel/Linear scales</span></div>
         <div class="spec-row"><span class="stat-label">Loudness</span><span class="spec-value"><strong>ITU-R BS.1770</strong> momentary, short-term, integrated LUFS, and true peak</span></div>
         <div class="spec-row"><span class="stat-label">Capture</span><span class="spec-value">CoreAudio taps, WASAPI loopback, PulseAudio monitors, and device input</span></div>
-        <div class="spec-row"><span class="stat-label">Plugins</span><span class="spec-value">VST3 on Windows, macOS, and Linux; AU on macOS; mono and stereo hosts</span></div>
+        <div class="spec-row"><span class="stat-label">Plugins</span><span class="spec-value">VST3 and CLAP on all three platforms; AU on macOS; mono and stereo</span></div>
+        <div class="spec-row"><span class="stat-label">Measurement</span><span class="spec-value">Interactive measurement overlays, with Linked Analysis sharing compatible guides across desktop scopes</span></div>
         <div class="spec-row"><span class="stat-label">Rendering</span><span class="spec-value">10, 30, 60, 120, or 144 FPS, plus display-synchronized rendering</span></div>
+        <div class="spec-row"><span class="stat-label">Latency</span><span class="spec-value"><strong>~7 ms median capture-to-render</strong> — default rack, M5 Pro, 120 FPS; excludes display latency. <a href="https://github.com/Boof2015/prism/blob/main/docs/latency.md" target="_blank" rel="noopener">Methodology ↗</a></span></div>
         <div class="spec-row"><span class="stat-label">Platforms</span><span class="spec-value"><strong>Windows · macOS · Linux</strong></span></div>
         <div class="spec-row"><span class="stat-label">License</span><span class="spec-value">GNU General Public License v3.0</span></div>
       </div>
-      <aside class="ecosystem-card" id="bridge"><h3>Optional Astra integration</h3><p>Connect Prism to Astra’s local API for cover art, track information, and playback controls beside the analyzers. Prism remains fully standalone.</p><a class="button button-secondary" href="/">Explore Astra →</a></aside>
+      <aside class="ecosystem-card" id="bridge"><h3>Optional now-playing integrations</h3><p>Track info and playback controls from Astra, Spotify, and TIDAL beside your scopes. TIDAL controls require Windows or a compatible Linux client; macOS supports track info only.</p><a class="button button-secondary" href="/">Explore Astra →</a></aside>
     </div>
   </section>
 
   <section class="section container reveal" id="download">
     <div class="download-layout">
-      <div class="download-copy"><div class="section-label"><span>//</span> Download</div><h2>Put Prism where you work.</h2><p>Prism is free and open source. Installable packages include the desktop app and the components supported by each platform, including DAW plugins and <code>prism-tui</code> where applicable.</p><a class="button button-secondary" href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener">All releases ↗</a></div>
+      <div class="download-copy"><div class="section-label"><span>//</span> Download</div><h2>Put Prism where you work.</h2><p>Free and open source, with DAW plugins and <code>prism-tui</code> included where supported. The Linux AppImage is desktop-only.</p><a class="button button-secondary" href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener">All releases ↗</a></div>
       <div>
         <div class="download-grid">
-          <a class="download-card" id="download-windows" href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener"><span class="platform-icon">⊞</span><div><h3>Windows</h3><p>Desktop · VST3 · TUI</p></div><span class="format-label">NSIS + Portable</span></a>
-          <a class="download-card" id="download-mac" href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener"><span class="platform-icon">⌘</span><div><h3>macOS</h3><p>Desktop · VST3 · AU · TUI</p></div><span class="format-label">PKG + ZIP</span></a>
-          <a class="download-card" id="download-linux" href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener"><span class="platform-icon">›_</span><div><h3>Linux</h3><p>Desktop · VST3 · TUI</p></div><span class="format-label">AppImage · DEB · RPM · TAR.GZ</span></a>
+          <a class="download-card" id="download-windows" href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener"><span class="platform-icon">⊞</span><div><h3>Windows</h3><p>Desktop · VST3 · CLAP · TUI</p></div><span class="format-label">Installer (.exe)</span></a>
+          <a class="download-card" id="download-mac" href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener"><span class="platform-icon">⌘</span><div><h3>macOS</h3><p>Desktop · VST3 · AU · CLAP · TUI</p></div><span class="format-label">Installer (.pkg)</span></a>
+          <a class="download-card" id="download-linux" href="https://github.com/Boof2015/prism/releases" target="_blank" rel="noopener"><span class="platform-icon">›_</span><div><h3>Linux</h3><p>Desktop · Plugins + TUI by package</p></div><span class="format-label">AppImage · DEB · RPM · TAR.GZ</span></a>
         </div>
         <div class="source-block">
           <div class="source-head"><span>Build from source</span><span>bash</span></div>
