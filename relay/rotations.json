@@ -40,5 +40,16 @@
     "releaseYear": 2023,
     "durationSeconds": 115,
     "artwork": "assets/artwork/004.webp"
+  },
+  {
+    "number": 5,
+    "publishedOn": "2026-09-19",
+    "artist": "Sān-Z, HOYO-MiX",
+    "title": "Prophecy",
+    "featureLine": "feat. Gin Wigmore",
+    "album": "Prophecy",
+    "releaseYear": 2026,
+    "durationSeconds": 254,
+    "artwork": "assets/artwork/005.webp"
   }
 ]
