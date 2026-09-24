@@ -51,5 +51,16 @@
     "releaseYear": 2026,
     "durationSeconds": 254,
     "artwork": "assets/artwork/005.webp"
+  },
+  {
+    "number": 6,
+    "publishedOn": "2026-09-23",
+    "artist": "Issey",
+    "title": "Nÿart Beat",
+    "featureLine": "feat. chogakusei",
+    "album": "nÿart beat",
+    "releaseYear": 2026,
+    "durationSeconds": 208,
+    "artwork": "assets/artwork/006.webp"
   }
 ]
