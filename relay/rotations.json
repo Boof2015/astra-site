@@ -62,5 +62,15 @@
     "releaseYear": 2026,
     "durationSeconds": 208,
     "artwork": "assets/artwork/006.webp"
+  },
+  {
+    "number": 7,
+    "publishedOn": "2026-09-26",
+    "artist": "Haywyre",
+    "title": "Chromatically",
+    "album": "Chromatically",
+    "releaseYear": 2024,
+    "durationSeconds": 198,
+    "artwork": "assets/artwork/007.webp"
   }
 ]
