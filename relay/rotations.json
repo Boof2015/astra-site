@@ -72,5 +72,15 @@
     "releaseYear": 2024,
     "durationSeconds": 198,
     "artwork": "assets/artwork/007.webp"
+  },
+  {
+    "number": 8,
+    "publishedOn": "2026-10-03",
+    "artist": "Imanu, Ymir",
+    "title": "Sutekh",
+    "album": "Sutekh",
+    "releaseYear": 2025,
+    "durationSeconds": 146,
+    "artwork": "assets/artwork/008.webp"
   }
 ]
