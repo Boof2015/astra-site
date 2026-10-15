@@ -82,5 +82,15 @@
     "releaseYear": 2025,
     "durationSeconds": 146,
     "artwork": "assets/artwork/008.webp"
+  },
+  {
+    "number": 9,
+    "publishedOn": "2026-10-14",
+    "artist": "Mupp, RXDXVIL",
+    "title": "Cut right through my heart",
+    "album": "Cut right through my heart",
+    "releaseYear": 2024,
+    "durationSeconds": 140,
+    "artwork": "assets/artwork/009.webp"
   }
 ]

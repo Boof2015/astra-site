@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -11,6 +11,8 @@ import {
 } from '../relay/app.js';
 import { generateRelaySite } from '../scripts/build-relay.mjs';
 import { padRotation, searchTextForRotation, validateRotations } from '../scripts/relay-content.mjs';
+import { decodeSignalLink } from '../docs/signal/vendor/astra-signal.js';
+import { extractSignalLink } from '../docs/signal/signal-core.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sourceRoot = path.join(projectRoot, 'relay');
@@ -47,6 +49,32 @@ test('rejects duplicate numbers and dates', async () => {
   );
 });
 
+test('accepts Signal title shortening without changing archive metadata', async () => {
+  for (const title of ['x'.repeat(2000), '五月猫🎵'.repeat(20)]) {
+    const [record] = await validateRotations([{ ...valid, title }], sourceRoot);
+    const decoded = decodeSignalLink(extractSignalLink(record.signalUrl));
+    assert.equal(record.artist, valid.artist);
+    assert.equal(record.title, title);
+    assert.equal(decoded.artist, valid.artist);
+    assert.ok(decoded.title.length > 0 && decoded.title.length < title.length);
+    assert.ok(title.startsWith(decoded.title));
+    assert.equal(decoded.title.isWellFormed(), true);
+    assert.equal(decoded.durationSec, valid.durationSeconds);
+  }
+});
+
+test('accepts Signal artist shortening when the artist alone exceeds capacity', async () => {
+  const artist = 'ナナツカゼ'.repeat(20);
+  const [record] = await validateRotations([{ ...valid, artist }], sourceRoot);
+  const decoded = decodeSignalLink(extractSignalLink(record.signalUrl));
+  assert.equal(record.artist, artist);
+  assert.equal(record.title, valid.title);
+  assert.ok(decoded.artist.length > 0 && decoded.artist.length < artist.length);
+  assert.ok(artist.startsWith(decoded.artist));
+  assert.equal(decoded.title, '');
+  assert.equal(decoded.durationSec, valid.durationSeconds);
+});
+
 test('rejects invalid dates, unsafe or missing artwork, and malformed Signal payloads', async () => {
   await assert.rejects(
     validateRotations([{ ...valid, publishedOn: '2026-02-30' }], sourceRoot),
@@ -61,7 +89,11 @@ test('rejects invalid dates, unsafe or missing artwork, and malformed Signal pay
     /does not exist/,
   );
   await assert.rejects(
-    validateRotations([{ ...valid, title: 'x'.repeat(2000) }], sourceRoot),
+    validateRotations([{ ...valid, durationSeconds: 65536 }], sourceRoot),
+    /Signal payload is invalid/,
+  );
+  await assert.rejects(
+    validateRotations([{ ...valid, title: 'broken \uD800' }], sourceRoot),
     /Signal payload is invalid/,
   );
   await assert.rejects(
@@ -94,6 +126,27 @@ test('uses the system theme until Paper or Ink is explicitly selected', () => {
   assert.equal(resolveTheme('paper', true), 'paper');
   assert.equal(resolveTheme('ink', false), 'ink');
   assert.equal(resolveTheme('invalid', true), 'ink');
+});
+
+test('builds the index and detail page for a title exceeding Signal capacity', async () => {
+  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'astral-relay-long-title-'));
+  try {
+    const fixtureRoot = path.join(temporaryRoot, 'source');
+    const outputRoot = path.join(temporaryRoot, 'output');
+    const title = 'A long track title with Unicode 五月猫🎵 and an extended version qualifier';
+    await cp(sourceRoot, fixtureRoot, { recursive: true });
+    await writeFile(path.join(fixtureRoot, 'rotations.json'), JSON.stringify([{ ...valid, title }]));
+    const [record] = await generateRelaySite({ root: projectRoot, sourceRoot: fixtureRoot, outputRoot });
+    const decoded = decodeSignalLink(extractSignalLink(record.signalUrl));
+    assert.notEqual(decoded.title, title);
+    for (const page of ['index.html', '032/index.html']) {
+      const html = await readFile(path.join(outputRoot, page), 'utf8');
+      assert.ok(html.includes(`<h1 id="featured-title" data-signal-title>${title}</h1>`));
+      assert.ok(html.includes(`href="${record.signalUrl}"`));
+    }
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
 });
 
 test('generates a semantic index and permanent page with canonical metadata', async () => {

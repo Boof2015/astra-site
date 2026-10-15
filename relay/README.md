@@ -13,3 +13,5 @@ This directory is the editable source for `astramusic.dev/relay/`. The generated
 The build sorts by rotation number and treats the highest number as current. It validates unique numbers and dates, ISO dates, required metadata, safe artwork paths, artwork existence, and the generated Astra Signal payload before replacing `docs/relay/`.
 
 Required record fields are `number`, `publishedOn`, `artist`, `title`, `durationSeconds`, and `artwork`. `featureLine`, `album`, and `releaseYear` are optional and disappear from the page when omitted. Signal URLs are generated at build time and should not be stored in `rotations.json`.
+
+The archive retains the complete artist and title. Signal v3 links have a fixed capacity: they shorten the title first, then the artist only if the artist alone cannot fit. This expected shortening does not block an update; the build validates the encoded payload's round trip and requires the duration to remain unchanged.

@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
-import { decodeSignalLink, encodeSignalLink } from '../docs/signal/vendor/astra-signal.js';
+import { decodeSignalLink, encodeSignalFrame, encodeSignalLink } from '../docs/signal/vendor/astra-signal.js';
 import { buildSignalPageUrl } from '../docs/signal/signal-core.js';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -60,11 +60,14 @@ function validateSignal(record, index) {
       title: record.title,
       durationSec: record.durationSeconds,
     };
-    const signalLink = encodeSignalLink(payload);
+    // Signal v3 shortens text to fit its largest frame. Validate that encoded
+    // payload, while retaining the complete artist/title in the archive record.
+    const encodedPayload = encodeSignalFrame(payload).payload;
+    const signalLink = encodeSignalLink(encodedPayload);
     const decoded = decodeSignalLink(signalLink);
     if (
-      decoded.artist !== payload.artist
-      || decoded.title !== payload.title
+      decoded.artist !== encodedPayload.artist
+      || decoded.title !== encodedPayload.title
       || decoded.durationSec !== payload.durationSec
     ) {
       throw new Error('round trip changed the payload');
