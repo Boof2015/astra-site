@@ -16,21 +16,33 @@ import { createAudioEngine } from "./audio.js";
 import {
   CONTRIBUTING_URL,
   formatDuration,
-  getArtistIndex,
-  normalizeKey,
+  findSimilarArtists,
+  getAllTracks,
+  matchKey,
   resolveArtist
 } from "./data.js";
 import {
+  applyFix,
   findHeaderLine,
+  findUntimedLines,
+  fixLabel,
+  lintLanguages,
+  lintLength,
+  lintTiming,
   patchHeader,
   readHeaders,
   validateLanguageMetadata
 } from "./editor-validation.js";
+import { isValidLanguageTag, languageName, suggestLanguages } from "./languages.js";
+import { attachSuggest } from "./suggest.js";
 
 const SUBMISSION_STORAGE_KEY = "xlrcdb-submission-draft";
 const LEADING_TIMESTAMP = /^\[\d+:\d{2}(?:\.\d{1,3})?\]/u;
 const LENGTH_PATTERN = /^(\d+):([0-5]\d)$/u;
 const DEFAULT_SOURCE = "[ti:]\n[ar:]\n[length:]\n[lang:]\n[langs:]\n\n[00:00.00]\n";
+// The package's shape-only language checks; languages.js is stricter and gives line numbers.
+const SUPERSEDED_LANGUAGE_WARNINGS = new Set(["invalid-lang", "invalid-langs", "invalid-translation-lang"]);
+const FIELD_LABELS = { ar: "Artist", ti: "Track", length: "Length", lang: "Primary language", langs: "All languages" };
 
 const ICON_IMPORT = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11 4 7h2.5V2h3v5H12L8 11Z"/><path d="M3 13h10v1H3z"/></svg>';
 const ICON_AUDIO = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 3v7.3A2.5 2.5 0 1 0 7 12V6h4V3H6Z"/></svg>';
@@ -52,6 +64,10 @@ export function createEditor(container, options = {}) {
     parsed: { meta: {}, lines: [], warnings: [] },
     artistResolution: { status: "empty" },
     resolveToken: 0,
+    audioSeconds: Number.NaN,
+    popOpen: false,
+    problemList: [],
+    notes: [],
     newArtist: { latin: "", pronunciation: "" },
     // edit-mode context, carried through to the PR
     trackPath: initial.trackPath || null,
@@ -77,7 +93,12 @@ export function createEditor(container, options = {}) {
     length: root.querySelector("#edLength"),
     lang: root.querySelector("#edLang"),
     langs: root.querySelector("#edLangList"),
+    langName: root.querySelector("#edLangName"),
+    langsName: root.querySelector("#edLangsName"),
     statusPill: root.querySelector("#edStatusPill"),
+    problemsPop: root.querySelector("#edProblemsPop"),
+    notices: root.querySelector("#edNotices"),
+    notes: root.querySelector("#edNotes"),
     disambig: root.querySelector("#edDisambig"),
     gutter: root.querySelector("#edGutter"),
     curline: root.querySelector("#edCurline"),
@@ -100,6 +121,7 @@ export function createEditor(container, options = {}) {
 
   // Declared up here because the mount sequence below calls resolveArtistDebounced.
   let resolveTimer = 0;
+  const suggests = [];
 
   // ── audio engine ──
   const audio = createAudioEngine(
@@ -156,13 +178,21 @@ export function createEditor(container, options = {}) {
     for (const field of [el.artist, el.title, el.length, el.lang, el.langs]) {
       field.addEventListener("input", () => {
         const key = field.dataset.header;
-        state.source = patchHeader(el.area.value, key, field.value);
-        el.area.value = state.source;
+        patchHeaderInPlace(key, field.value);
         if (key === "ar") resolveArtistDebounced(180);
         persist();
         paint();
       });
     }
+
+    wireLanguageFields();
+    el.disambig.addEventListener("click", onDisambigClick);
+
+    el.statusPill.addEventListener("click", () => togglePop());
+    for (const host of [el.problemsPop, el.notices, el.notes]) host.addEventListener("click", onIssueClick);
+    document.addEventListener("pointerdown", onDocPointerDown);
+    document.addEventListener("keydown", onDocKeydown);
+    window.addEventListener("resize", positionNotes);
 
     el.importBtn.addEventListener("click", () => el.importFile.click());
     el.importFile.addEventListener("change", async () => {
@@ -235,6 +265,29 @@ export function createEditor(container, options = {}) {
   }
 
   // ─────────────────────────── editing ───────────────────────────
+  // Rewrite one header line without throwing the caret to the end of the file: everything
+  // after the edited line shifts by the length difference.
+  function patchHeaderInPlace(key, value) {
+    const before = el.area.value;
+    const after = patchHeader(before, key, value);
+    let at = 0;
+    while (at < before.length && before[at] === after[at]) at++;
+    const delta = after.length - before.length;
+    const shift = (offset) => (offset > at ? Math.max(at, offset + delta) : offset);
+    const { selectionStart, selectionEnd } = el.area;
+    el.area.value = after;
+    el.area.setSelectionRange(shift(selectionStart), shift(selectionEnd));
+    state.source = after;
+  }
+
+  // Replace the whole source (quick fixes, imports) keeping the caret roughly in place.
+  function setSource(text) {
+    const caret = Math.min(el.area.selectionStart, text.length);
+    el.area.value = text;
+    el.area.selectionStart = el.area.selectionEnd = caret;
+    onSourceInput();
+  }
+
   function onSourceInput() {
     state.source = el.area.value;
     syncMetaFromSource();
@@ -284,6 +337,7 @@ export function createEditor(container, options = {}) {
     );
     updateCurline();
     positionActiveBand();
+    positionNotes();
   }
 
   function updateCurline() {
@@ -330,15 +384,16 @@ export function createEditor(container, options = {}) {
   }
 
   function onAudioDuration(seconds) {
+    state.audioSeconds = seconds;
     // Auto-fill [length:] from the loaded audio (design-doc behaviour).
     const current = (state.parsed.meta.length || "").trim();
     if (!current) {
       el.length.value = formatDuration(seconds);
-      state.source = patchHeader(el.area.value, "length", el.length.value);
-      el.area.value = state.source;
+      patchHeaderInPlace("length", el.length.value);
       persist();
-      paint();
     }
+    // Re-lint either way: "past the end" and the length check depend on the audio.
+    paint();
   }
 
   function onEmbeddedLyrics(text) {
@@ -354,12 +409,18 @@ export function createEditor(container, options = {}) {
       state.submitState = { kind: "idle", message: "" };
       hideToast();
     }
+    render();
+  }
+
+  // Recompute and redraw everything derived from the source. Unlike paint() this keeps any
+  // submit feedback, so it can run when an async lookup (artist resolution) lands.
+  function render() {
     const output = computeOutput(el.area.value);
     state.output = output;
     state.parsed = output.parsed;
 
-    buildHighlight(el.highlight, el.area.value, output.warningLines);
-    renderGutter(el.area.value, output.warningLines);
+    buildHighlight(el.highlight, el.area.value, output.errorLines, output.warnLines);
+    renderGutter(el.area.value, output.errorLines, output.warnLines);
     syncScroll();
 
     state.lineEls = renderLyrics(el.preview, output.parsed, "", { showAll: true });
@@ -371,6 +432,7 @@ export function createEditor(container, options = {}) {
     const langs = detectedLangs(output.parsed);
     el.langSummary.textContent = langs.length ? langs.map((l) => LANG_LABELS[l] || l).join(", ") : "—";
 
+    renderLangHints();
     renderStatus(output);
     runDuplicateCheck(output);
   }
@@ -380,6 +442,9 @@ export function createEditor(container, options = {}) {
     el.copyBtn.disabled = !output.valid;
     el.exportBtn.disabled = !output.valid;
     el.submitBtn.disabled = !output.valid || sub.kind === "busy";
+    const errorCount = output.errors.length;
+    el.submitBtn.title = errorCount ? `Fix ${errorCount} ${errorCount === 1 ? "error" : "errors"} first` : "";
+    renderIssues(output);
 
     if (sub.kind === "busy") {
       el.statusPill.className = "submit-status-pill";
@@ -399,20 +464,14 @@ export function createEditor(container, options = {}) {
       el.statusText.textContent = "Checking live index for duplicates";
       return;
     }
-    if (output.valid) {
-      el.statusPill.className = "submit-status-pill valid";
-      el.statusPill.textContent = "Valid";
-    } else {
-      el.statusPill.className = "submit-status-pill invalid";
-      el.statusPill.textContent = "Invalid";
-    }
+    renderPill(output);
     // An idle note (config hint, submit error, post-sign-in flash) takes the line.
     if (sub.kind === "idle" && sub.message) {
       el.statusText.textContent = sub.message;
     } else if (output.valid) {
       el.statusText.textContent = mode === "edit" ? "Ready to open edit PR" : "Ready to submit";
     } else {
-      el.statusText.textContent = output.errors[0]?.message ?? "Needs changes";
+      el.statusText.textContent = output.errors[0] ? issueText(output.errors[0]) : "Needs changes";
     }
   }
 
@@ -423,75 +482,141 @@ export function createEditor(container, options = {}) {
     const dup = await findDuplicate(output).catch(() => null);
     if (token !== state.token) return;
     if (dup) {
-      output.errors.push({ message: `Possible duplicate: ${dup.artist.canonical_name} - ${dup.track.title} (${formatDuration(dup.track.length)})`, line: 0 });
+      output.issues.push({
+        severity: "error",
+        code: "duplicate",
+        message: `Already in xlrcdb: ${dup.canonicalName} - ${dup.track.title} (${formatDuration(dup.track.length)})`,
+        line: 0,
+        field: "ti",
+        link: { href: `#/track/${encodeURIComponent(dup.artistId)}/${encodeURIComponent(dup.track.id)}`, label: "View" },
+        ...(mode === "new" && options.onOpenAsEdit ? {
+          edit: { artistId: dup.artistId, canonicalName: dup.canonicalName, trackId: dup.track.id, trackPath: dup.track.path }
+        } : {})
+      });
+      output.errors = output.issues.filter((issue) => issue.severity === "error");
       output.valid = false;
       state.output = output;
     }
     renderStatus(output);
   }
 
+  // Mirrors the data repo's isSameRecording: artist and title compared by matchKey (so
+  // punctuation and case don't matter) across every artist record, length within a second.
   async function findDuplicate(output) {
     const resolved = await resolveArtist(output.artist);
-    if (!resolved) return null;
-    const artist = await getArtistIndex(resolved.artistId);
-    const normalizedTitle = normalizeKey(output.title);
-    const track = artist.tracks.find((candidate) =>
-      candidate.id !== state.trackId &&
-      normalizeKey(candidate.title) === normalizedTitle &&
-      Math.abs(candidate.length - output.lengthSeconds) <= 1
-    );
-    return track ? { artist, track } : null;
+    const artistKey = matchKey(resolved ? resolved.canonicalName : output.artist);
+    const titleKey = matchKey(output.title);
+    const tracks = await getAllTracks();
+    return tracks.find((entry) =>
+      entry.track.id !== state.trackId &&
+      matchKey(entry.canonicalName) === artistKey &&
+      matchKey(entry.track.title) === titleKey &&
+      Math.abs(entry.track.length - output.lengthSeconds) <= 1
+    ) ?? null;
   }
 
   function computeOutput(rawSource) {
     const text = ensureTrailingNewline(rawSource);
-    const errors = [];
-    const warningLines = new Set();
+    const issues = [];
+    const add = (severity, issue) => issues.push({ severity, ...issue });
     let parsed = { meta: {}, lines: [], warnings: [] };
 
     try {
       parsed = parseXLRC(text);
     } catch (error) {
-      errors.push({ message: error.message || "XLRC could not be parsed", line: 0 });
+      add("error", { code: "parse", message: error.message || "XLRC could not be parsed", line: 0 });
     }
 
+    // Plain text lines (pasted lyrics) are one grouped item, not one error per line.
+    const untimed = new Set(findUntimedLines(text));
+    const untimedLines = [];
     for (const warning of parsed.warnings) {
-      warningLines.add(warning.line);
-      errors.push({ message: formatPackageWarning(warning), line: warning.line });
+      if (warning.code === "unrecognized-line" && untimed.has(warning.line)) {
+        untimedLines.push(warning.line);
+        continue;
+      }
+      add("error", { code: warning.code, message: warning.message, line: warning.line });
     }
+    if (untimedLines.length > 0) {
+      add("error", {
+        code: "untimed",
+        message: untimedLines.length === 1
+          ? "No timestamp yet. Add [mm:ss.xx] or use Stamp with audio"
+          : `${untimedLines.length} lines have no timestamp yet. Add [mm:ss.xx] or use Stamp with audio`,
+        line: untimedLines[0],
+        lines: untimedLines
+      });
+    }
+
     for (const warning of validateXLRC(parsed).warnings.filter((warning) => (
       warning.code !== "invalid-length" &&
+      !SUPERSEDED_LANGUAGE_WARNINGS.has(warning.code) &&
       !(
         warning.code === "invalid-lang" &&
         (typeof parsed.meta.lang !== "string" || parsed.meta.lang.trim() === "")
       )
     ))) {
-      if (warning.line > 0) warningLines.add(warning.line);
-      errors.push({ message: formatPackageWarning(warning), line: warning.line });
+      add("error", { code: warning.code, message: warning.message, line: warning.line });
     }
 
     const artist = typeof parsed.meta.ar === "string" ? parsed.meta.ar.trim() : "";
     const title = typeof parsed.meta.ti === "string" ? parsed.meta.ti.trim() : "";
     const length = typeof parsed.meta.length === "string" ? parsed.meta.length.trim() : "";
     const lengthSeconds = parseLengthSeconds(length);
+    const hasAudio = Number.isFinite(state.audioSeconds);
 
-    requireHeader(text, artist, "ar", "Missing non-empty [ar:] header", errors, warningLines);
-    requireHeader(text, title, "ti", "Missing non-empty [ti:] header", errors, warningLines);
+    const requireHeader = (value, key, message, extra = {}) => {
+      if (!value) add("error", { code: "missing-header", message, line: findHeaderLine(text, key), field: key, ...extra });
+    };
+    requireHeader(artist, "ar", "Missing non-empty [ar:] header");
+    requireHeader(title, "ti", "Missing non-empty [ti:] header");
     if (!length) {
-      requireHeader(text, length, "length", "Missing non-empty [length:] header", errors, warningLines);
+      requireHeader(length, "length", "Missing non-empty [length:] header",
+        hasAudio ? { fix: { kind: "set-length", value: formatDuration(state.audioSeconds) } } : {});
     } else if (lengthSeconds === undefined) {
-      const line = findHeaderLine(text, "length");
-      errors.push({ message: "Length must use mm:ss with seconds below 60", line });
-      if (line) warningLines.add(line);
+      add("error", {
+        code: "length-format",
+        message: "Length must use mm:ss with seconds below 60",
+        line: findHeaderLine(text, "length"),
+        field: "length",
+        ...(hasAudio ? { fix: { kind: "set-length", value: formatDuration(state.audioSeconds) } } : {})
+      });
     }
 
-    for (const error of validateLanguageMetadata(parsed, text)) {
-      errors.push(error);
-      if (error.line) warningLines.add(error.line);
+    for (const error of validateLanguageMetadata(parsed, text)) add("error", error);
+
+    // CI only creates artists for new submissions; an edited track's [ar:] has to resolve.
+    const resolution = state.artistResolution;
+    if (mode === "edit" && artist && resolution.status === "new" && resolution.name === artist) {
+      const [near] = resolution.similar || [];
+      add("error", {
+        code: "edit-unknown-artist",
+        message: `"${artist}" isn't an artist or alias in xlrcdb. An edit has to keep an existing artist`,
+        line: findHeaderLine(text, "ar"),
+        field: "ar",
+        ...(near ? { fix: { kind: "set-header", key: "ar", value: near.canonicalName } } : {})
+      });
     }
+
+    // Advice that doesn't block submitting.
+    const endMs = hasAudio ? state.audioSeconds * 1000 : lengthSeconds !== undefined ? lengthSeconds * 1000 : undefined;
+    for (const warning of lintTiming(parsed, { endMs })) add("warning", warning);
+    for (const warning of lintLanguages(parsed, text)) add("warning", warning);
+    for (const warning of lintLength({ lengthSeconds, audioSeconds: state.audioSeconds, line: findHeaderLine(text, "length") })) {
+      add("warning", warning);
+    }
+
+    const errorLines = new Set();
+    const warnLines = new Set();
+    for (const issue of issues) {
+      const target = issue.severity === "error" ? errorLines : warnLines;
+      for (const line of issue.lines ?? [issue.line]) if (line > 0) target.add(line);
+    }
+    for (const line of errorLines) warnLines.delete(line);
 
     const filename = `${slugify(artist || "artist")}-${slugify(title || "track")}.xlrc`;
     const targetPath = mode === "edit" && state.trackPath ? state.trackPath : `incoming/${filename}`;
+    const errors = issues.filter((issue) => issue.severity === "error");
 
     return {
       mode,
@@ -503,18 +628,370 @@ export function createEditor(container, options = {}) {
       filename,
       targetPath,
       parsed,
+      issues,
       errors,
-      warningLines,
+      errorLines,
+      warnLines,
       lineCount: text.split(/\r?\n/u).length,
       valid: errors.length === 0
     };
   }
 
-  function renderGutter(text, warningLines) {
+  function renderGutter(text, errorLines, warnLines) {
     el.gutter.innerHTML = text.split(/\r?\n/u).map((_, index) => {
       const line = index + 1;
-      return `<div class="ln${warningLines.has(line) ? " warn" : ""}">${line}</div>`;
+      const cls = errorLines.has(line) ? " err" : warnLines.has(line) ? " warn" : "";
+      return `<div class="ln${cls}">${line}</div>`;
     }).join("");
+  }
+
+  // ─────────────────────────── problems: inline notes, notices, popover ───────────────────────────
+  // Problems show where they happen: a note at the end of the source line (fix button right
+  // there), an outline on the meta field, and a strip under the meta bar for file-level ones
+  // (duplicate, header missing entirely). The pill opens the full list next to itself.
+  function renderIssues(output) {
+    state.problemList = [...output.issues].sort(compareIssues);
+    renderNotes(output);
+    renderNotices(output);
+    renderFieldStates(output);
+    if (state.popOpen) renderPop();
+  }
+
+  function compareIssues(a, b) {
+    return (a.severity === b.severity ? 0 : a.severity === "error" ? -1 : 1) ||
+      (a.line > 0 ? a.line : Infinity) - (b.line > 0 ? b.line : Infinity);
+  }
+
+  function countLabel(n, word) {
+    return `${n} ${word}${n === 1 ? "" : "s"}`;
+  }
+
+  function renderPill(output) {
+    const errors = output.errors.length;
+    const warnings = output.issues.length - errors;
+    const warn = warnings ? `<span class="pill-warn">${countLabel(warnings, "warning")}</span>` : "";
+    if (errors) {
+      el.statusPill.className = "submit-status-pill invalid";
+      el.statusPill.innerHTML = `<span>${countLabel(errors, "error")}</span>${warn}`;
+    } else {
+      el.statusPill.className = "submit-status-pill valid";
+      el.statusPill.innerHTML = `<span>Valid</span>${warn}`;
+    }
+    el.statusPill.title = output.issues.length ? "Show all problems" : "No problems";
+    el.statusPill.setAttribute("aria-expanded", String(state.popOpen));
+  }
+
+  function issueIndex(issue) {
+    return state.problemList.indexOf(issue);
+  }
+
+  function issueActions(issue) {
+    const i = issueIndex(issue);
+    const fix = issue.fix ? `<button class="issue-fix" type="button" data-fix="${i}">${escapeHtml(fixLabel(issue.fix))}</button>` : "";
+    const link = issue.link ? `<a class="issue-fix" href="${escapeHtml(issue.link.href)}" target="_blank" rel="noopener">${escapeHtml(issue.link.label)}</a>` : "";
+    const edit = issue.edit ? `<button class="issue-fix primary" type="button" data-edit="${i}" title="Open an edit PR for the existing track, keeping your changes">Submit as an edit</button>` : "";
+    return edit + fix + link;
+  }
+
+  function sevClass(issue) {
+    return issue.severity === "error" ? "err" : "warn";
+  }
+
+  // One note per source line (the most severe issue, "+N" for the rest), placed just past
+  // the end of the line's text and clamped to stay inside the pane.
+  function renderNotes(output) {
+    el.notes.textContent = "";
+    state.notes = [];
+    const byLine = new Map();
+    for (const issue of state.problemList) {
+      if (!(issue.line > 0)) continue;
+      if (!byLine.has(issue.line)) byLine.set(issue.line, []);
+      byLine.get(issue.line).push(issue);
+    }
+    const base = el.highlight.getBoundingClientRect().left - el.highlight.scrollLeft;
+    const padLeft = parseFloat(getComputedStyle(el.highlight).paddingLeft) || 14;
+    for (const [line, issues] of byLine) {
+      const row = el.highlight.children[line - 1];
+      if (!row) continue;
+      const [issue, ...rest] = issues;
+      let textRight = padLeft;
+      if (row.textContent) {
+        const range = document.createRange();
+        range.selectNodeContents(row);
+        textRight = range.getBoundingClientRect().right - base;
+      }
+      const node = document.createElement("div");
+      node.className = `ed-note ${sevClass(issue)}`;
+      node.title = issues.map((item) => item.message).join("\n");
+      node.innerHTML = `
+        <button class="ed-note-main" type="button" data-go="${issueIndex(issue)}"><i></i><span>${escapeHtml(issue.message)}</span></button>
+        ${rest.length ? `<span class="ed-note-more">+${rest.length}</span>` : ""}
+        ${issueActions(issue)}`;
+      el.notes.appendChild(node);
+      state.notes.push({ node, row, textRight, natural: node.offsetWidth });
+    }
+    positionNotes();
+  }
+
+  function positionNotes() {
+    if (!state.notes.length) return;
+    const paneWidth = el.notes.clientWidth;
+    const paneHeight = el.notes.clientHeight;
+    for (const note of state.notes) {
+      const top = note.row.offsetTop - el.highlight.scrollTop;
+      const visible = top > -24 && top < paneHeight;
+      note.node.style.visibility = visible ? "" : "hidden";
+      if (!visible) continue;
+      // Prefer the space after the text, truncating the message to fit; only when there's
+      // barely any room does the note sit flush right, over the end of a long line.
+      let left = note.textRight - el.highlight.scrollLeft + 24;
+      let room = paneWidth - left - 8;
+      if (room < Math.min(note.natural, 240)) {
+        room = Math.min(note.natural, paneWidth - 16, 440);
+        left = paneWidth - room;
+      }
+      note.node.style.maxWidth = `${Math.max(120, Math.floor(room))}px`;
+      note.node.style.transform = `translate(${Math.round(Math.max(8, left))}px, ${Math.round(top)}px)`;
+    }
+  }
+
+  // Issues with no source line: shown under the meta bar, action beside the message.
+  function renderNotices(output) {
+    const notices = state.problemList.filter((issue) => !(issue.line > 0));
+    el.notices.innerHTML = notices.map((issue) => `
+      <div class="ed-notice ${sevClass(issue)}">
+        <button class="ed-notice-main" type="button" data-go="${issueIndex(issue)}"><i></i><span>${escapeHtml(issue.message)}</span></button>
+        ${issueActions(issue)}
+      </div>`).join("");
+    el.notices.classList.toggle("show", notices.length > 0);
+  }
+
+  function renderFieldStates(output) {
+    const worst = {};
+    for (const issue of output.issues) {
+      if (!issue.field) continue;
+      if (worst[issue.field] !== "error") worst[issue.field] = issue.severity;
+    }
+    for (const key of ["ar", "ti", "length", "lang", "langs"]) {
+      const input = fieldInput(key);
+      input.classList.toggle("has-error", worst[key] === "error");
+      input.classList.toggle("has-warning", worst[key] === "warning");
+    }
+  }
+
+  function togglePop(force) {
+    state.popOpen = typeof force === "boolean" ? force : !state.popOpen;
+    el.problemsPop.hidden = !state.popOpen;
+    el.statusPill.setAttribute("aria-expanded", String(state.popOpen));
+    if (state.popOpen) renderPop();
+  }
+
+  function renderPop() {
+    const rows = state.problemList.map((issue, i) => {
+      const where = issue.line > 0 ? `Ln ${issue.line}` : issue.field ? FIELD_LABELS[issue.field] : "File";
+      return `
+        <div class="ed-pop-row ${sevClass(issue)}">
+          <button class="ed-pop-main" type="button" data-go="${i}">
+            <i></i><span class="ed-pop-where">${escapeHtml(where)}</span><span class="ed-pop-msg">${escapeHtml(issue.message)}</span>
+          </button>
+          ${issueActions(issue)}
+        </div>`;
+    }).join("");
+    el.problemsPop.innerHTML = `
+      <div class="ed-pop-head">Errors block submitting. Warnings are suggestions.</div>
+      ${rows || '<div class="ed-pop-empty">No problems. Ready to submit.</div>'}`;
+  }
+
+  function onIssueClick(e) {
+    const editBtn = e.target.closest("button[data-edit]");
+    if (editBtn) {
+      const issue = state.problemList[Number(editBtn.dataset.edit)];
+      if (issue?.edit) openAsEdit(issue.edit);
+      return;
+    }
+    const fixBtn = e.target.closest("button[data-fix]");
+    if (fixBtn) {
+      const issue = state.problemList[Number(fixBtn.dataset.fix)];
+      if (issue?.fix) applyIssueFix(issue);
+      return;
+    }
+    const go = e.target.closest("[data-go]");
+    if (go) {
+      const issue = state.problemList[Number(go.dataset.go)];
+      if (issue) goToIssue(issue);
+    }
+  }
+
+  function onDocPointerDown(e) {
+    if (state.popOpen && !el.problemsPop.contains(e.target) && !el.statusPill.contains(e.target)) togglePop(false);
+  }
+
+  function onDocKeydown(e) {
+    if (e.key === "Escape" && state.popOpen) togglePop(false);
+  }
+
+  // Turn a would-be duplicate into an edit of the existing track, keeping the user's text.
+  // The edit has to name an existing artist, so [ar:] is switched to that track's artist
+  // unless it already resolves to it (an alias is fine).
+  async function openAsEdit(target) {
+    let source = ensureTrailingNewline(el.area.value);
+    const resolved = await resolveArtist(state.output.artist).catch(() => null);
+    if (!resolved || resolved.artistId !== target.artistId) {
+      source = patchHeader(source, "ar", target.canonicalName);
+    }
+    options.onOpenAsEdit({
+      mode: "edit",
+      source,
+      trackPath: target.trackPath,
+      trackId: target.trackId,
+      artistId: target.artistId
+    });
+  }
+
+  function applyIssueFix(issue) {
+    const next = applyFix(el.area.value, state.parsed, issue.fix);
+    if (next === el.area.value) return;
+    setSource(next);
+  }
+
+  // Header problems go to the matching meta-bar field; everything else to the source line.
+  function goToIssue(issue) {
+    const field = issue.field ? fieldInput(issue.field) : null;
+    if (field) {
+      field.focus();
+      field.select();
+      flash(field.closest("label") || field);
+      return;
+    }
+    if (issue.line > 0) jumpToLine(issue.line);
+  }
+
+  function fieldInput(key) {
+    return { ar: el.artist, ti: el.title, length: el.length, lang: el.lang, langs: el.langs }[key] || null;
+  }
+
+  function jumpToLine(line) {
+    const value = el.area.value;
+    const start = offsetOfLine(value, line - 1);
+    el.area.focus({ preventScroll: true });
+    el.area.setSelectionRange(start, start);
+    const lineHeight = parseFloat(getComputedStyle(el.area).lineHeight) || 21;
+    el.area.scrollTop = Math.max(0, (line - 1) * lineHeight - el.area.clientHeight / 3);
+    syncScroll();
+    flash(el.curline);
+    // Bring the matching preview line (or the lyric a translation belongs to) into view.
+    const idx = state.parsed.lines.findIndex((l) => l.line === line || l.translations.some((t) => t.line === line));
+    if (idx >= 0) state.lineEls[idx]?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  function flash(node) {
+    node.classList.remove("ed-flash");
+    void node.offsetWidth;
+    node.classList.add("ed-flash");
+  }
+
+  // ─────────────────────────── language fields ───────────────────────────
+  function wireLanguageFields() {
+    suggests.push(attachSuggest(el.lang, {
+      openOnFocus: true,
+      getItems: (input) => {
+        const query = input.value.trim();
+        // A finished, valid code needs no list until the user starts changing it.
+        if (document.activeElement === input && isValidLanguageTag(query) && languageName(query) && !input.dataset.typing) return [];
+        return suggestLanguages(query).map(languageItem);
+      },
+      onPick: (item, input) => {
+        input.value = item.tag;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }));
+
+    // [langs:] is a comma list: suggest for the token being typed, "in this file" tags first.
+    suggests.push(attachSuggest(el.langs, {
+      openOnFocus: true,
+      getItems: (input) => {
+        const tokens = input.value.split(",");
+        const current = tokens[tokens.length - 1].trim();
+        const listed = tokens.slice(0, -1).map((token) => token.trim()).filter(Boolean);
+        const inFile = requiredLanguages().filter((tag) => !listed.some((l) => l.toLowerCase() === tag.toLowerCase()));
+        if (!current) {
+          const fromFile = inFile.map((tag) => ({ tag, name: languageName(tag), inFile: true }));
+          const common = suggestLanguages("", { exclude: [...listed, ...inFile], limit: 6 });
+          return [...fromFile, ...common].map(languageItem);
+        }
+        if (isValidLanguageTag(current) && languageName(current) && !input.dataset.typing) return [];
+        return suggestLanguages(current, { exclude: listed }).map((item) => languageItem({
+          ...item,
+          inFile: inFile.some((tag) => tag.toLowerCase() === item.tag.toLowerCase())
+        }));
+      },
+      onPick: (item, input) => {
+        const tokens = input.value.split(",");
+        tokens[tokens.length - 1] = item.tag;
+        input.value = tokens.map((token) => token.trim()).filter(Boolean).join(",");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }));
+
+    // "typing" lets the list show for a valid code the user is in the middle of editing.
+    for (const input of [el.lang, el.langs]) {
+      input.addEventListener("input", () => {
+        input.dataset.typing = "1";
+      });
+      input.addEventListener("blur", () => {
+        delete input.dataset.typing;
+      });
+    }
+    // Drop the stray commas and spaces that typing a list leaves behind.
+    el.langs.addEventListener("blur", () => {
+      const tidy = el.langs.value.split(",").map((tag) => tag.trim()).filter(Boolean).join(",");
+      if (tidy !== el.langs.value) {
+        el.langs.value = tidy;
+        el.langs.dispatchEvent(new Event("input", { bubbles: true }));
+        delete el.langs.dataset.typing;
+      }
+    });
+  }
+
+  function languageItem(item) {
+    const note = item.inFile ? '<small>in this file</small>' : "";
+    return {
+      ...item,
+      html: `<code>${escapeHtml(item.tag)}</code><span>${escapeHtml(item.name || "")}</span>${note}`
+    };
+  }
+
+  // [lang:] plus every inline translation language, in the order a reader meets them.
+  function requiredLanguages() {
+    const out = [];
+    const seen = new Set();
+    const add = (tag) => {
+      if (!tag || seen.has(tag.toLowerCase())) return;
+      seen.add(tag.toLowerCase());
+      out.push(tag);
+    };
+    add((el.lang.value || "").trim());
+    for (const line of state.parsed.lines) for (const tr of line.translations) add(tr.lang);
+    return out;
+  }
+
+  function renderLangHints() {
+    const lang = el.lang.value.trim();
+    setHint(el.langName, lang ? (languageName(lang) || "not a language code") : "", lang && !languageName(lang));
+
+    const tags = el.langs.value.split(",").map((tag) => tag.trim()).filter(Boolean);
+    const unknown = tags.filter((tag) => !languageName(tag));
+    if (unknown.length) {
+      setHint(el.langsName, `unknown: ${unknown.join(", ")}`, true);
+    } else {
+      setHint(el.langsName, tags.map(languageName).join(", "), false);
+    }
+  }
+
+  function setHint(node, text, bad) {
+    node.textContent = text ? ` · ${text}` : "";
+    node.classList.toggle("bad", Boolean(bad));
+    node.title = text;
   }
 
   function setActiveLine(idx) {
@@ -562,9 +1039,19 @@ export function createEditor(container, options = {}) {
     if (resolved) {
       state.artistResolution = { status: "existing", artistId: resolved.artistId, canonicalName: resolved.canonicalName, name };
     } else {
-      state.artistResolution = { status: "new", name };
+      const similar = await findSimilarArtists(name).catch(() => []);
+      if (token !== state.resolveToken) return;
+      state.artistResolution = { status: "new", name, similar };
     }
     renderDisambig();
+    if (mode === "edit") render();
+  }
+
+  function onDisambigClick(e) {
+    const use = e.target.closest("button[data-use]");
+    if (!use) return;
+    el.artist.value = use.dataset.use;
+    el.artist.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   function renderDisambig() {
@@ -579,11 +1066,25 @@ export function createEditor(container, options = {}) {
       el.disambig.innerHTML = `<span class="ed-disambig-dot"></span><span>Existing artist <strong>${escapeHtml(r.canonicalName)}</strong></span><code>${escapeHtml(r.artistId)}</code>`;
       return;
     }
+    const similar = (r.similar || []).map((match) => (
+      `<button class="ed-disambig-use" type="button" data-use="${escapeHtml(match.canonicalName)}">${escapeHtml(match.canonicalName)}</button>`
+    )).join(" ");
+    const similarHtml = similar ? `<span class="ed-disambig-similar">Already in xlrcdb: ${similar}</span>` : "";
+    // Edits never create artists (CI requires [ar:] to resolve), so no "will be created".
+    if (mode === "edit") {
+      el.disambig.className = "ed-disambig new";
+      el.disambig.innerHTML = `
+        <span class="ed-disambig-dot"></span>
+        <span>No artist named <strong>${escapeHtml(r.name)}</strong> in xlrcdb</span>
+        ${similarHtml}`;
+      return;
+    }
     // new artist: offer optional latin name + pronunciation
     el.disambig.className = "ed-disambig new";
     el.disambig.innerHTML = `
       <span class="ed-disambig-dot"></span>
       <span>New artist <strong>${escapeHtml(r.name)}</strong> will be created</span>
+      ${similarHtml}
       <div class="ed-newartist">
         <label><span>Latin name</span><input id="edArtistLatin" type="text" placeholder="optional" value="${escapeHtml(state.newArtist.latin)}"></label>
         <label><span>Pronunciation</span><input id="edArtistPron" type="text" placeholder="optional" value="${escapeHtml(state.newArtist.pronunciation)}"></label>
@@ -687,6 +1188,10 @@ export function createEditor(container, options = {}) {
 
   function destroy() {
     clearTimeout(resolveTimer);
+    document.removeEventListener("pointerdown", onDocPointerDown);
+    document.removeEventListener("keydown", onDocKeydown);
+    window.removeEventListener("resize", positionNotes);
+    for (const suggest of suggests) suggest.destroy();
     audio.destroy();
   }
 
@@ -723,12 +1228,14 @@ function template(mode) {
       <label><span>Artist</span><input id="edArtist" data-header="ar" type="text" placeholder="Artist"></label>
       <label><span>Track</span><input id="edTitle" data-header="ti" type="text" placeholder="Title"></label>
       <label class="submit-length-field"><span>Length</span><input id="edLength" data-header="length" type="text" inputmode="numeric" placeholder="03:42"></label>
-      <label><span>Primary language</span><input id="edLang" data-header="lang" type="text" placeholder="ja" autocapitalize="off" spellcheck="false"></label>
-      <label><span>All languages</span><input id="edLangList" data-header="langs" type="text" placeholder="ja,en" autocapitalize="off" spellcheck="false"></label>
-      <div class="submit-status-pill" id="edStatusPill">Checking</div>
+      <label><span>Primary language<em class="ed-lang-name" id="edLangName"></em></span><input id="edLang" data-header="lang" type="text" placeholder="ja" autocapitalize="off" spellcheck="false"></label>
+      <label><span>All languages<em class="ed-lang-name" id="edLangsName"></em></span><input id="edLangList" data-header="langs" type="text" placeholder="ja,en" autocapitalize="off" spellcheck="false"></label>
+      <button class="submit-status-pill" id="edStatusPill" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="edProblemsPop">Checking</button>
+      <div class="ed-problems-pop" id="edProblemsPop" role="dialog" aria-label="Problems" hidden></div>
     </section>
 
     <div class="ed-disambig" id="edDisambig"></div>
+    <div class="ed-notices" id="edNotices" aria-live="polite"></div>
 
     <div class="submit-main">
       <section class="submit-source-pane" aria-label="XLRC source editor">
@@ -737,6 +1244,7 @@ function template(mode) {
           <div class="ed-activeline" id="edActiveline" aria-hidden="true"></div>
           <div class="ed-curline" id="edCurline"></div>
           <pre class="ed-highlight" id="edHighlight" aria-hidden="true"></pre>
+          <div class="ed-notes" id="edNotes"></div>
           <textarea class="ed-area" id="edArea" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
         </div>
       </section>
@@ -761,8 +1269,8 @@ function template(mode) {
     </div>
 
     <footer class="submit-statusbar">
-      <span id="edStatusText">Checking</span>
-      <span id="edPath">incoming/artist-track.xlrc</span>
+      <span class="ed-status-text" id="edStatusText">Checking</span>
+      <span class="ed-status-path" id="edPath">incoming/artist-track.xlrc</span>
       <span id="edLangs">—</span>
       <span id="edLineCount">0 lines</span>
     </footer>
@@ -778,13 +1286,6 @@ function template(mode) {
 
     <audio id="edAudio" preload="metadata"></audio>
   </article>`;
-}
-
-function requireHeader(text, value, key, message, errors, warningLines) {
-  if (value) return;
-  const line = findHeaderLine(text, key);
-  errors.push({ message, line });
-  if (line) warningLines.add(line);
 }
 
 function lineAt(text, offset) {
@@ -807,9 +1308,9 @@ function offsetOfLine(text, lineIndex) {
   return text.length;
 }
 
-function formatPackageWarning(warning) {
-  const prefix = Number.isInteger(warning.line) && warning.line > 0 ? `Line ${warning.line}: ` : "";
-  return `${prefix}${warning.message}`;
+function issueText(issue) {
+  const prefix = Number.isInteger(issue.line) && issue.line > 0 ? `Line ${issue.line}: ` : "";
+  return `${prefix}${issue.message}`;
 }
 
 function ensureTrailingNewline(value) {

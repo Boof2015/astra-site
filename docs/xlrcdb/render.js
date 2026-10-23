@@ -106,12 +106,12 @@ export function colorizeLine(raw) {
 }
 
 // Paint the highlight overlay that sits behind the textarea caret.
-export function buildHighlight(highlightEl, text, warnLines) {
+export function buildHighlight(highlightEl, text, errorLines, warnLines = new Set()) {
   const parts = text.split(/\r?\n/u);
   highlightEl.textContent = "";
   for (let i = 0; i < parts.length; i++) {
     const lineSpan = document.createElement("span");
-    lineSpan.className = warnLines.has(i + 1) ? "hl-line err" : "hl-line";
+    lineSpan.className = errorLines.has(i + 1) ? "hl-line err" : warnLines.has(i + 1) ? "hl-line warn" : "hl-line";
     lineSpan.appendChild(colorizeLine(parts[i]));
     highlightEl.appendChild(lineSpan);
   }

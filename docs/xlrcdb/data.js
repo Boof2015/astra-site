@@ -9,6 +9,8 @@ export const CONTRIBUTING_URL = `${DATA_REPO_URL}/blob/main/CONTRIBUTING.md`;
 
 const artistCache = new Map();
 const trackTextCache = new Map();
+let aliasesPromise = null;
+let allTracksPromise = null;
 
 const store = {
   aliasesIndex: null,
@@ -26,15 +28,47 @@ export function getAliasEntries() {
 export function clearCaches() {
   store.aliasesIndex = null;
   store.aliasEntries = [];
+  aliasesPromise = null;
+  allTracksPromise = null;
   artistCache.clear();
   trackTextCache.clear();
 }
 
-export async function loadAliases() {
-  store.aliasesIndex = await fetchJson(joinUrl(DATA_SOURCE, "index/aliases.json"));
-  store.aliasEntries = Object.entries(store.aliasesIndex.aliases ?? {})
-    .sort(([left], [right]) => compareStrings(left, right));
-  return store;
+export function loadAliases() {
+  aliasesPromise = (async () => {
+    store.aliasesIndex = await fetchJson(joinUrl(DATA_SOURCE, "index/aliases.json"));
+    store.aliasEntries = Object.entries(store.aliasesIndex.aliases ?? {})
+      .sort(([left], [right]) => compareStrings(left, right));
+    return store;
+  })();
+  return aliasesPromise;
+}
+
+// The editor can mount before the aliases index arrives (a direct load of #/submit), so
+// lookups wait for an in-flight load instead of answering "no such artist".
+async function aliasesReady() {
+  if (!store.aliasesIndex && aliasesPromise) await aliasesPromise.catch(() => {});
+}
+
+// Every track in the database as { artistId, canonicalName, track }, built by fetching each
+// artist's index file. Cached until clearCaches().
+export function getAllTracks() {
+  if (!allTracksPromise) allTracksPromise = buildAllTracks();
+  return allTracksPromise;
+}
+
+async function buildAllTracks() {
+  await aliasesReady();
+  const ids = [...new Set(store.aliasEntries.map(([, artistId]) => artistId))];
+  const out = [];
+  await Promise.all(ids.map(async (artistId) => {
+    const artist = await getArtistIndex(artistId).catch(() => null);
+    if (!artist) return;
+    for (const track of artist.tracks) {
+      out.push({ artistId, canonicalName: artist.canonical_name, track });
+    }
+  }));
+  return out;
 }
 
 export function getArtistIndex(artistId) {
@@ -79,6 +113,17 @@ export function normalizeKey(value) {
   return String(value).normalize("NFKC").toLowerCase().replace(/\s+/gu, " ").trim();
 }
 
+// Same rules as the data repo's matchKey (duplicate detection only): normalizeKey plus
+// punctuation and symbols folded to spaces, so "For - Revenge" matches "for Revenge".
+export function matchKey(value) {
+  return String(value)
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
 export function artistIndexPath(artistId) {
   const body = artistId.startsWith("art_") ? artistId.slice(4) : artistId;
   return `index/artists/${body.slice(0, 2)}/${body.slice(2, 4)}/${artistId}.json`;
@@ -99,9 +144,27 @@ export function formatDuration(seconds) {
   return `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
 }
 
+// Artists whose name or alias differs from artistName only in punctuation, spacing or case
+// ("K - DA" vs "K/DA"). Alias resolution is exact, so without a nudge these submissions would
+// create a second artist record. Returns [{ artistId, alias, canonicalName }].
+export async function findSimilarArtists(artistName) {
+  await aliasesReady();
+  const key = matchKey(artistName);
+  if (!key) return [];
+  const matches = new Map();
+  for (const [alias, artistId] of store.aliasEntries) {
+    if (!matches.has(artistId) && matchKey(alias) === key) matches.set(artistId, alias);
+  }
+  return Promise.all([...matches].map(async ([artistId, alias]) => {
+    const artist = await getArtistIndex(artistId).catch(() => null);
+    return { artistId, alias, canonicalName: artist?.canonical_name ?? alias };
+  }));
+}
+
 // Resolve an [ar:] string to an existing artist id via the aliases index.
 // Returns { artistId, canonicalName } when exactly one artist matches, else null.
 export async function resolveArtist(artistName) {
+  await aliasesReady();
   const aliases = store.aliasesIndex?.aliases ?? {};
   const artistId = aliases[normalizeKey(artistName)];
   if (!artistId) {

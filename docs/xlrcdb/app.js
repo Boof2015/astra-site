@@ -10,6 +10,7 @@ import {
   loadAliases,
   getAliasEntries,
   getAliasesIndex,
+  getAllTracks,
   getArtistIndex,
   getTrackText,
   clearCaches,
@@ -31,8 +32,6 @@ const ui = {
   error: null,
   searchToken: 0,
   searchTimer: 0,
-  trackIndex: null,
-  trackIndexPromise: null,
   editor: null,
   mountedRoute: null,
   user: null,
@@ -80,8 +79,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function refresh() {
   ui.loading = true;
   ui.error = null;
-  ui.trackIndex = null;
-  ui.trackIndexPromise = null;
   clearCaches();
 
   setStatus("loading", "Connecting to source");
@@ -170,7 +167,7 @@ async function renderSearch() {
   // Track-only query → search every track by title (global index).
   if (!artistQuery && trackQuery) {
     setResults(resultMessage("Searching tracks"));
-    const index = await getTrackIndex().catch(() => null);
+    const index = await getAllTracks().catch(() => null);
     if (token !== ui.searchToken) return;
     if (!index) return setResults(resultMessage("Track search unavailable"));
     const hits = index
@@ -215,26 +212,6 @@ function collectArtistMatches(query) {
     matches.set(artistId, match);
   }
   return [...matches.values()].sort((a, b) => compareStrings(a.artistId, b.artistId));
-}
-
-async function getTrackIndex() {
-  if (ui.trackIndex) return ui.trackIndex;
-  if (!ui.trackIndexPromise) ui.trackIndexPromise = buildTrackIndex();
-  return ui.trackIndexPromise;
-}
-
-async function buildTrackIndex() {
-  const ids = [...new Set(getAliasEntries().map(([, artistId]) => artistId))];
-  const out = [];
-  await Promise.all(ids.map(async (artistId) => {
-    const artist = await getArtistIndex(artistId).catch(() => null);
-    if (!artist) return;
-    for (const track of artist.tracks) {
-      out.push({ artistId, canonicalName: artist.canonical_name, track });
-    }
-  }));
-  ui.trackIndex = out;
-  return out;
 }
 
 function renderArtistResult(artist, aliases, tracks, showTracks = false) {
@@ -323,7 +300,16 @@ function mountNewEditor() {
   if (ui.editor) ui.editor.destroy();
   const initial = pendingEditorInitial || {};
   pendingEditorInitial = null;
-  ui.editor = createEditor(el.detailPane, { mode: "new", initial, onSubmit: handleTrackSubmit });
+  ui.editor = createEditor(el.detailPane, {
+    mode: "new",
+    initial,
+    onSubmit: handleTrackSubmit,
+    // "Submit as an edit" on a duplicate: carry the text into the existing track's editor.
+    onOpenAsEdit: (editInitial) => {
+      pendingEditorInitial = editInitial;
+      location.hash = `#/edit/${encodeURIComponent(editInitial.artistId)}/${encodeURIComponent(editInitial.trackId)}`;
+    }
+  });
   flushFlash();
 }
 
@@ -382,8 +368,6 @@ async function handleTrackSubmit(submission) {
     editor.setSubmitFeedback("busy", "Starting");
     const { url } = await github.submitTrack(submission, (msg) => editor.setSubmitFeedback("busy", msg));
     editor.setSubmitFeedback("done", `Pull request opened: <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`);
-    ui.trackIndex = null;
-    ui.trackIndexPromise = null;
   } catch (error) {
     editor.setSubmitFeedback("idle", error.message || "Submission failed");
   }

@@ -732,7 +732,11 @@ body.submit-mode {
   position: relative;
   height: 100vh;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  /* Named rows so an empty, display:none strip (notices) can't shift the rest up a track. */
+  grid-template-areas: "toolbar" "meta" "disambig" "notices" "main" "transport" "status";
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
+  /* minmax(0, …) so no row's content (long paths, no-wrap labels) can widen the editor. */
+  grid-template-columns: minmax(0, 1fr);
   overflow: hidden;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -741,6 +745,14 @@ body.submit-mode {
 .submit-editor-app audio {
   display: none;
 }
+
+.submit-toolbar { grid-area: toolbar; }
+.submit-meta-bar { grid-area: meta; }
+.ed-disambig { grid-area: disambig; }
+.ed-notices { grid-area: notices; }
+.submit-main { grid-area: main; }
+.ed-transport { grid-area: transport; }
+.submit-statusbar { grid-area: status; }
 
 .submit-toolbar {
   display: flex;
@@ -836,8 +848,9 @@ body.submit-mode {
 }
 
 .submit-meta-bar {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(100px, 120px) minmax(110px, 140px) minmax(140px, 180px) auto;
+  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(90px, 110px) minmax(150px, 210px) minmax(180px, 280px) auto;
   gap: 0.65rem;
   align-items: end;
   padding: 0.7rem 1rem;
@@ -851,7 +864,7 @@ body.submit-mode {
   min-width: 0;
 }
 
-.submit-meta-bar span {
+.submit-meta-bar label > span {
   color: var(--text-muted);
   font-family: var(--mono);
   font-size: 0.56rem;
@@ -875,7 +888,93 @@ body.submit-mode {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+.submit-meta-bar label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Resolved language name next to the field label ("· Japanese"). */
+.ed-lang-name {
+  color: var(--text-secondary);
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.ed-lang-name.bad {
+  color: var(--red);
+}
+
+.submit-meta-bar label.ed-flash input {
+  animation: ed-field-flash 1.4s ease-out;
+}
+
+@keyframes ed-field-flash {
+  0%, 40% { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent); }
+}
+
+/* Suggestion dropdown (suggest.js) */
+.suggest-host {
+  position: relative;
+}
+
+.suggest-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  min-width: max(100%, 240px);
+  max-height: 280px;
+  overflow-y: auto;
+  display: none;
+  padding: 4px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+}
+
+.suggest-list.show {
+  display: block;
+}
+
+.suggest-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.42rem 0.55rem;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.suggest-item.active {
+  color: var(--text-primary);
+  background: var(--bg-panel-soft);
+}
+
+.suggest-item code {
+  min-width: 4.2em;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+}
+
+.suggest-item small {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .submit-status-pill {
+  cursor: pointer;
   height: 34px;
   min-width: 86px;
   padding: 0 0.8rem;
@@ -905,6 +1004,194 @@ body.submit-mode {
   background: rgba(248, 113, 113, 0.08);
 }
 
+.submit-status-pill {
+  gap: 0.55rem;
+  white-space: nowrap;
+}
+
+.submit-status-pill:hover,
+.submit-status-pill[aria-expanded="true"] {
+  filter: brightness(1.2);
+}
+
+.pill-warn {
+  color: var(--amber);
+}
+
+.pill-warn::before {
+  content: "·";
+  margin-right: 0.55rem;
+  color: var(--text-muted);
+}
+
+/* Meta fields that own a problem. */
+.submit-meta-bar input.has-error {
+  border-color: rgba(248, 113, 113, 0.7);
+}
+
+.submit-meta-bar input.has-warning {
+  border-color: rgba(251, 191, 36, 0.6);
+}
+
+/* Full problem list, opened from the pill and anchored under it. */
+.ed-problems-pop {
+  position: absolute;
+  top: calc(100% - 6px);
+  right: 1rem;
+  z-index: 70;
+  width: min(500px, calc(100vw - 2rem));
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--border-bright);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+}
+
+.ed-problems-pop[hidden] {
+  display: none;
+}
+
+.ed-pop-head {
+  padding: 0.45rem 0.55rem 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.ed-pop-empty {
+  padding: 0.6rem 0.55rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.ed-pop-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: 0.35rem;
+  border-radius: 7px;
+}
+
+.ed-pop-row:hover {
+  background: var(--bg-panel-soft);
+}
+
+.ed-pop-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ed-pop-main:hover { color: var(--text-primary); }
+
+.ed-pop-where {
+  flex: 0 0 auto;
+  min-width: 3.6em;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.66rem;
+}
+
+.ed-pop-main i,
+.ed-note-main i,
+.ed-notice-main i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  align-self: center;
+  border-radius: 50%;
+}
+
+.err > .ed-pop-main i,
+.err > .ed-note-main i,
+.err > .ed-notice-main i { background: var(--red); }
+.warn > .ed-pop-main i,
+.warn > .ed-note-main i,
+.warn > .ed-notice-main i { background: var(--amber); }
+
+/* Fix / link buttons, always right beside their message. */
+.issue-fix {
+  flex: 0 0 auto;
+  height: 24px;
+  padding: 0 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--bg-panel-soft);
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.issue-fix:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.issue-fix.primary {
+  border-color: var(--text-primary);
+  color: var(--bg-primary);
+  background: var(--text-primary);
+  font-weight: 600;
+}
+
+.issue-fix.primary:hover {
+  opacity: 0.88;
+  color: var(--bg-primary);
+}
+
+/* File-level problems (no source line): a strip under the meta bar. */
+.ed-notices {
+  display: none;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.35rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.ed-notices.show {
+  display: flex;
+}
+
+.ed-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.ed-notice-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+  border: 0;
+  color: var(--text-primary);
+  background: transparent;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ed-notice.err .ed-notice-main span { color: #fca5a5; }
+.ed-notice.warn .ed-notice-main span { color: #fcd34d; }
+
 /* artist disambiguation strip */
 .ed-disambig {
   display: flex;
@@ -928,6 +1215,30 @@ body.submit-mode {
 
 .ed-disambig strong {
   color: var(--text-primary);
+}
+
+.ed-disambig-similar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--amber);
+}
+
+.ed-disambig-use {
+  height: 24px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--bg-panel-soft);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ed-disambig-use:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .ed-disambig code {
@@ -1030,10 +1341,15 @@ body.submit-mode {
   font-weight: 600;
 }
 
-.ed-gutter .ln.warn {
+.ed-gutter .ln.err {
   color: var(--red);
 }
 
+.ed-gutter .ln.warn {
+  color: var(--amber);
+}
+
+.ed-gutter .ln.err::before,
 .ed-gutter .ln.warn::before {
   content: "";
   position: absolute;
@@ -1042,6 +1358,10 @@ body.submit-mode {
   bottom: 3px;
   width: 2px;
   background: var(--red);
+}
+
+.ed-gutter .ln.warn::before {
+  background: var(--amber);
 }
 
 .ed-input {
@@ -1087,6 +1407,74 @@ body.submit-mode {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
+/* Inline problem notes at the end of source lines (positioned by editor.js). */
+.ed-notes {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ed-note {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: var(--ed-line);
+  max-width: min(560px, calc(100% - 20px));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 3px 0 7px;
+  border-radius: 5px;
+  pointer-events: auto;
+  font-family: var(--sans);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+/* Tinted, but opaque, so a note clamped over long text stays readable. */
+.ed-note.err {
+  color: #fca5a5;
+  background: linear-gradient(rgba(248, 113, 113, 0.13), rgba(248, 113, 113, 0.13)), var(--bg-primary);
+}
+
+.ed-note.warn {
+  color: #fcd34d;
+  background: linear-gradient(rgba(251, 191, 36, 0.1), rgba(251, 191, 36, 0.1)), var(--bg-primary);
+}
+
+.ed-note-main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ed-note-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-note-more {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.64rem;
+}
+
+.ed-note .issue-fix {
+  height: 17px;
+  padding: 0 0.45rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+}
+
 /* Caret line: subtle, so it reads differently from the accent "now playing" band. */
 .ed-curline {
   position: absolute;
@@ -1129,6 +1517,22 @@ body.submit-mode {
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
   text-decoration-skip-ink: none;
+}
+
+.hl-line.warn {
+  text-decoration: underline dotted var(--amber);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}
+
+.ed-curline.ed-flash {
+  animation: ed-curline-flash 1.4s ease-out;
+}
+
+@keyframes ed-curline-flash {
+  0%, 35% { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+  100% { background: rgba(255, 255, 255, 0.04); }
 }
 
 .submit-divider {
@@ -1434,17 +1838,21 @@ body.submit-mode {
   font-size: 0.72rem;
 }
 
-.submit-statusbar span:first-child {
+.ed-status-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.submit-statusbar span:first-child a {
+.ed-status-text a {
   color: var(--accent);
 }
 
-.submit-statusbar span:nth-child(2) {
-  flex: 1;
-  min-width: 0;
+.ed-status-path {
+  max-width: 34%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1623,11 +2031,12 @@ body.submit-mode {
   .submit-tool-button { height: 30px; padding: 0 0.65rem; }
 
   .submit-meta-bar {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
   }
 
   .submit-status-pill { width: 100%; }
+  .ed-status-path { display: none; }
   .submit-preview-pane { padding: 1.25rem; }
   .ed-transport { flex-wrap: wrap; }
 }
