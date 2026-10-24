@@ -27,6 +27,24 @@ import { createGitHub } from "./github.js";
 
 const github = createGitHub();
 
+// Temporary: preview the submit flow without opening a real pull request. On for local
+// development (localhost / 127.0.0.1) or with ?simulate in the URL; ?simulate=0 forces a
+// real submission. The live site always submits for real.
+const SIMULATE_SUBMIT = (() => {
+  const params = new URLSearchParams(location.search);
+  if (params.has("simulate")) return params.get("simulate") !== "0";
+  return location.hostname === "localhost" || location.hostname === "127.0.0.1";
+})();
+
+function submitContext() {
+  return {
+    simulate: SIMULATE_SUBMIT,
+    configured: github.isConfigured(),
+    authed: github.isAuthed(),
+    login: ui.user?.login || ""
+  };
+}
+
 const ui = {
   loading: true,
   error: null,
@@ -304,6 +322,7 @@ function mountNewEditor() {
     mode: "new",
     initial,
     onSubmit: handleTrackSubmit,
+    getSubmitContext: submitContext,
     // "Submit as an edit" on a duplicate: carry the text into the existing track's editor.
     onOpenAsEdit: (editInitial) => {
       pendingEditorInitial = editInitial;
@@ -318,7 +337,7 @@ async function mountEditEditor(artistId, trackId) {
     const initial = pendingEditorInitial;
     pendingEditorInitial = null;
     if (ui.editor) ui.editor.destroy();
-    ui.editor = mountEditor({ mode: "edit", initial, onSubmit: handleTrackSubmit });
+    ui.editor = mountEditor({ mode: "edit", initial, onSubmit: handleTrackSubmit, getSubmitContext: submitContext });
     flushFlash();
     return;
   }
@@ -333,7 +352,8 @@ async function mountEditEditor(artistId, trackId) {
     ui.editor = mountEditor({
       mode: "edit",
       initial: { source, original: source, trackPath: track.path, trackId: track.id, artistId: artist.id },
-      onSubmit: handleTrackSubmit
+      onSubmit: handleTrackSubmit,
+      getSubmitContext: submitContext
     });
     flushFlash();
   } catch (error) {
@@ -369,6 +389,11 @@ async function handleTrackSubmit(submission) {
   if (!submission || !ui.editor) return;
   const editor = ui.editor;
 
+  if (SIMULATE_SUBMIT) {
+    await simulateSubmit(submission, editor);
+    return;
+  }
+
   if (!github.isConfigured()) {
     editor.setSubmitFeedback("idle", "Sign-in isn't configured yet. Use Export or Copy and open a PR manually via Guide.");
     return;
@@ -390,11 +415,32 @@ async function handleTrackSubmit(submission) {
 
   try {
     editor.setSubmitFeedback("busy", "Starting");
-    const { url } = await github.submitTrack(submission, (msg) => editor.setSubmitFeedback("busy", msg));
-    editor.setSubmitFeedback("done", `Pull request opened: <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`);
+    const { url, number } = await github.submitTrack(submission, (msg, info) => editor.setSubmitFeedback("busy", msg, info));
+    editor.setSubmitFeedback("done", `Pull request opened: <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`, { url, number });
   } catch (error) {
     editor.setSubmitFeedback("idle", error.message || "Submission failed");
   }
+}
+
+// Plays back the same progress steps (and kinds of detail) github.js reports, then a
+// simulated success.
+async function simulateSubmit(submission, editor) {
+  const login = ui.user?.login || "you";
+  const title = `${submission.mode === "edit" ? "Edit" : "Add"}: ${submission.artist} - ${submission.title}`;
+  const path = submission.mode === "edit" && submission.trackPath ? submission.trackPath : `incoming/${crypto.randomUUID()}.xlrc`;
+  const steps = [
+    ["Checking your GitHub account", "account", `@${login}`],
+    ["Preparing your copy of xlrcdb", "fork", `${login}/xlrcdb`],
+    ["Creating a branch for this change", "branch", `xlrcdb-${submission.mode}-${Date.now().toString(36)}`],
+    ["Uploading the lyrics", "commit", path],
+    ["Opening the pull request", "pr", title]
+  ];
+  for (const [text, step, detail] of steps) {
+    editor.setSubmitFeedback("busy", text, { step, detail });
+    await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 400));
+  }
+  editor.setSubmitFeedback("busy", "Pull request opened", { step: "pr", detail: `#0 · ${title} (simulated)` });
+  editor.setSubmitFeedback("done", "Simulated submission finished. No pull request was opened.", { simulated: true });
 }
 
 function flushFlash() {
@@ -548,6 +594,15 @@ async function submitArtistEdit(artist, record) {
   const aliases = document.getElementById("aeAliases").value.split("\n").map((s) => s.trim()).filter(Boolean);
   const text = serializeArtistToml({ ...record, id: artist.id, canonical_name: artist.canonical_name, canonical_name_latin: latin, pronunciation, aliases });
   const edit = { path: artistRecordPath(artist.id), text, artistId: artist.id, canonicalName: artist.canonical_name };
+
+  if (SIMULATE_SUBMIT) {
+    for (const step of ["Reading your GitHub account", "Preparing your fork", "Creating a branch", `Committing ${edit.path.split("/").pop()}`, "Opening the pull request"]) {
+      status.textContent = `Simulated: ${step}`;
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    }
+    status.textContent = "Simulated: no pull request was opened.";
+    return;
+  }
 
   if (!github.isConfigured()) {
     status.textContent = "Sign-in isn't configured yet.";

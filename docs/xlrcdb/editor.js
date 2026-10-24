@@ -61,6 +61,7 @@ import {
 } from "./editor-validation.js";
 import { canonicalTag, isValidLanguageTag, languageName, suggestLanguages } from "./languages.js";
 import { attachSuggest } from "./suggest.js";
+import { createReviewSheet, summarizeSubmission } from "./review-sheet.js";
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/u.test(navigator.platform || navigator.userAgent);
 const ALT = IS_MAC ? "⌥" : "Alt+";
@@ -169,6 +170,7 @@ export function createEditor(container, options = {}) {
     trHint: root.querySelector("#edTrHint"),
     trAdd: root.querySelector("#edTrAdd"),
     banner: root.querySelector("#edBanner"),
+    review: root.querySelector("#edReview"),
     audio: root.querySelector("#edAudio"),
     statusText: root.querySelector("#edStatusText"),
     pathText: root.querySelector("#edPath"),
@@ -209,6 +211,12 @@ export function createEditor(container, options = {}) {
       onEmbeddedLyrics: onEmbeddedLyrics
     }
   );
+
+  const review = createReviewSheet(el.review, {
+    onConfirm: () => options.onSubmit?.(buildSubmission()),
+    onGoFix: (issue) => goToIssue(issue),
+    onClose: () => {}
+  });
 
   const sync = createSyncMode(el.sync, {
     getSource: () => el.area.value,
@@ -325,7 +333,7 @@ export function createEditor(container, options = {}) {
     el.copyBtn.addEventListener("click", onCopy);
     el.exportBtn.addEventListener("click", onExport);
     if (options.onSubmit) {
-      el.submitBtn.addEventListener("click", () => options.onSubmit(buildSubmission()));
+      el.submitBtn.addEventListener("click", openReview);
     }
 
     // drag-drop (lyrics or audio) anywhere on the editor
@@ -461,7 +469,7 @@ export function createEditor(container, options = {}) {
   // Undo/redo anywhere in the editor, plus the Alt shortcuts (bound by e.code so macOS
   // Option characters like "˚" never reach the text).
   function onRootKeydown(e) {
-    if (e.defaultPrevented) return;
+    if (e.defaultPrevented || review.isOpen()) return;
     if (e.target !== document.body && !root.contains(e.target)) return;
     const mod = e.metaKey || e.ctrlKey;
     if (mod && !e.altKey && e.code === "KeyZ") {
@@ -1735,25 +1743,39 @@ export function createEditor(container, options = {}) {
         ${similarHtml}`;
       return;
     }
-    // new artist: offer optional latin name + pronunciation
+    // New artist. Its optional Latin name / pronunciation are asked for in the review sheet.
     el.disambig.className = "ed-disambig new";
     el.disambig.innerHTML = `
       <span class="ed-disambig-dot"></span>
       <span>New artist <strong>${escapeHtml(r.name)}</strong> will be created</span>
-      ${similarHtml}
-      <div class="ed-newartist">
-        <label><span>Latin name</span><input id="edArtistLatin" type="text" placeholder="optional" value="${escapeHtml(state.newArtist.latin)}"></label>
-        <label><span>Pronunciation</span><input id="edArtistPron" type="text" placeholder="optional" value="${escapeHtml(state.newArtist.pronunciation)}"></label>
-      </div>`;
-    el.disambig.querySelector("#edArtistLatin").addEventListener("input", (e) => {
-      state.newArtist.latin = e.target.value;
-    });
-    el.disambig.querySelector("#edArtistPron").addEventListener("input", (e) => {
-      state.newArtist.pronunciation = e.target.value;
-    });
+      ${similarHtml}`;
   }
 
   // ─────────────────────────── submission handoff ───────────────────────────
+  // "Submit via PR" opens the review sheet; the sheet's confirm hands off to onSubmit.
+  function openReview() {
+    const output = state.output;
+    if (!output?.valid) return;
+    if (sync.isOpen()) sync.close();
+    const meta = output.parsed.meta;
+    review.open({
+      mode,
+      title: output.title,
+      artist: output.artist,
+      length: output.length,
+      lang: typeof meta.lang === "string" ? meta.lang.trim() : "",
+      langs: Array.isArray(meta.langs) ? meta.langs : [],
+      targetPath: output.targetPath,
+      artistResolution: state.artistResolution,
+      newArtist: state.newArtist,
+      summary: summarizeSubmission(output.parsed, output.text),
+      warnings: output.issues.filter((issue) => issue.severity === "warning"),
+      account: options.getSubmitContext?.() ?? {},
+      simulate: Boolean(options.getSubmitContext?.()?.simulate),
+      rights: false
+    });
+  }
+
   function buildSubmission() {
     const output = state.output;
     const resolution = state.artistResolution;
@@ -1775,7 +1797,8 @@ export function createEditor(container, options = {}) {
     };
   }
 
-  function setSubmitFeedback(kind, message) {
+  function setSubmitFeedback(kind, message, result = {}) {
+    if (review.isOpen()) review.setProgress(kind, message, result);
     state.submitState = { kind, message };
     if (kind === "done" && mode === "edit") {
       clearTimeout(state.draftTimer);
@@ -1783,8 +1806,10 @@ export function createEditor(container, options = {}) {
     }
     el.submitBtn.disabled = kind === "busy" || !state.output?.valid;
     renderStatus(state.output, false);
-    // Mirror submit lifecycle into a prominent toast (the statusbar is easy to miss).
-    if (kind === "busy") showToast("busy", escapeHtml(message), false);
+    // Mirror submit lifecycle into a prominent toast (the statusbar is easy to miss), unless
+    // the review sheet is open and already showing it.
+    if (review.isOpen()) hideToast();
+    else if (kind === "busy") showToast("busy", escapeHtml(message), false);
     else if (kind === "done") showToast("success", message, true); // message is safe HTML (PR link)
     else if (kind === "idle" && message) showToast("error", escapeHtml(message), true);
     else hideToast();
@@ -1976,6 +2001,7 @@ function template(mode) {
     </div>
 
     <div class="ed-toast" id="edToast" role="status" aria-live="polite"></div>
+    <div id="edReview"></div>
 
     <audio id="edAudio" preload="metadata"></audio>
   </article>`;

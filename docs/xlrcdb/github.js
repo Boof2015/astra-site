@@ -145,28 +145,30 @@ export function createGitHub() {
   }
 
   // Shared core: fork -> branch off upstream main -> commit file(s) -> open PR.
+  // onProgress(text, { step, detail }): step is one of account / fork / branch / commit / pr
+  // (the review sheet's checklist); detail is the technical specific (login, branch, path).
   async function openFilePr({ branchPrefix, files, title, body, onProgress }) {
     if (!isAuthed()) throw new Error("Not signed in");
 
-    onProgress("Reading your GitHub account");
+    onProgress("Checking your GitHub account", { step: "account" });
     const user = await getUser();
+    onProgress("Checking your GitHub account", { step: "account", detail: `@${user.login}` });
 
-    onProgress("Preparing your fork");
+    const fork = `${user.login}/${UPSTREAM.repo}`;
+    onProgress("Preparing your copy of xlrcdb", { step: "fork", detail: fork });
     await ensureFork(user.login);
     // Bring the fork's main up to date with upstream (best-effort). Branching off
     // the UPSTREAM head 404s when the fork is behind, so we base the branch on the
     // fork's own main, which always exists in the fork.
     await syncFork(user.login).catch(() => {});
 
-    onProgress("Locating the latest main");
-    const baseSha = await refSha(user.login, UPSTREAM.repo, BASE_BRANCH);
-
     const branch = `${branchPrefix}-${Date.now().toString(36)}`;
-    onProgress("Creating a branch");
+    onProgress("Creating a branch for this change", { step: "branch", detail: branch });
+    const baseSha = await refSha(user.login, UPSTREAM.repo, BASE_BRANCH);
     await createRef(user.login, UPSTREAM.repo, branch, baseSha);
 
     for (const file of files) {
-      onProgress(`Committing ${file.path.split("/").pop()}`);
+      onProgress("Uploading the lyrics", { step: "commit", detail: file.path });
       // For in-place edits we need the blob sha that the branch points at.
       let sha = file.sha;
       if (file.fetchSha) {
@@ -178,7 +180,7 @@ export function createGitHub() {
       });
     }
 
-    onProgress("Opening the pull request");
+    onProgress("Opening the pull request", { step: "pr", detail: title });
     const pr = await api("POST", `/repos/${UPSTREAM.owner}/${UPSTREAM.repo}/pulls`, {
       title,
       head: `${user.login}:${branch}`,
@@ -187,7 +189,7 @@ export function createGitHub() {
       maintainer_can_modify: true
     });
 
-    onProgress("Pull request opened");
+    onProgress("Pull request opened", { step: "pr", detail: `#${pr.number} · ${title}` });
     return { url: pr.html_url, number: pr.number };
   }
 
