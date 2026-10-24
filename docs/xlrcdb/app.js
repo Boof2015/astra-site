@@ -44,6 +44,12 @@ function submitContext() {
   };
 }
 
+const PHONE = matchMedia("(max-width: 620px)");
+// Narrower than this, the editor gets a "use a bigger screen" note first (tablets in landscape
+// and up go straight in).
+const EDITOR_MIN = matchMedia("(max-width: 760px)");
+const BIG_SCREEN_OK_KEY = "xlrcdb-small-screen-ok";
+
 const ui = {
   loading: true,
   error: null,
@@ -63,6 +69,7 @@ const el = {};
 
 document.addEventListener("DOMContentLoaded", async () => {
   el.search = document.getElementById("search");
+  el.searchPane = document.querySelector(".search-pane");
   el.results = document.getElementById("results");
   el.detailPane = document.getElementById("detailPane");
   el.refreshButton = document.getElementById("refreshButton");
@@ -77,7 +84,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   el.results.addEventListener("click", onResultsClick);
   document.addEventListener("keydown", onGlobalKeydown);
   el.refreshButton.addEventListener("click", () => refresh());
-  window.addEventListener("hashchange", () => renderRoute());
+  window.addEventListener("hashchange", () => {
+    // On phones the results float over the page; picking one should close them.
+    if (PHONE.matches && document.activeElement && el.searchPane.contains(document.activeElement)) document.activeElement.blur();
+    renderRoute();
+  });
 
   // Complete an OAuth round-trip if we're returning from GitHub.
   const redirect = await github.handleRedirect();
@@ -179,6 +190,7 @@ function scheduleSearch() {
 
 function renderSearch() {
   const query = el.search.value.trim();
+  el.searchPane.classList.toggle("has-query", Boolean(query));
   if (ui.loading) return setResults(resultMessage("Loading the index…"));
   if (ui.error) return setResults(resultMessage("The database couldn't be reached."));
   if (getAliasEntries().length === 0) return setResults(resultMessage("No artists indexed yet."));
@@ -313,6 +325,13 @@ async function renderRoute() {
     ui.mountedRoute = null;
   }
 
+  if (editorRoute && needsBigScreenNote()) {
+    if (ui.editor) ui.editor.destroy();
+    ui.editor = null;
+    ui.mountedRoute = null;
+    return renderBigScreenNote();
+  }
+
   // Already mounted for this exact editor route: never remount (would wipe work).
   if (editorRoute && ui.mountedRoute === routeKey) return;
   if (editorRoute) {
@@ -403,6 +422,41 @@ async function mountEditEditor(artistId, trackId) {
   } catch (error) {
     setDetail(stateBlock("Unavailable", "Track unavailable", error.message, "error-state"));
   }
+}
+
+// ─────────────────────────── small screens ───────────────────────────
+// Timing lyrics needs a keyboard, the waveform and room for the text, so on phones the editor
+// starts with a note instead. "Continue anyway" is remembered for the rest of the visit.
+function needsBigScreenNote() {
+  if (!EDITOR_MIN.matches) return false;
+  try {
+    return sessionStorage.getItem(BIG_SCREEN_OK_KEY) !== "1";
+  } catch {
+    return true;
+  }
+}
+
+function renderBigScreenNote() {
+  setDetail(`
+    <div class="big-screen-note">
+      <div>
+        <p class="eyebrow">Editor</p>
+        <h2>The editor needs a bigger screen</h2>
+        <p>Timing lyrics takes a keyboard, the waveform and room for the text. Open this page on a computer or a tablet in landscape.</p>
+        <div class="note-actions">
+          <a class="link-button primary" href="#/">Back to browsing</a>
+          <button class="link-button" type="button" data-note="copy">Copy link</button>
+        </div>
+        <button class="text-button" type="button" data-note="continue">Continue anyway</button>
+      </div>
+    </div>`);
+  el.detailPane.querySelector('[data-note="copy"]').addEventListener("click", (e) => copyText(location.href, e.currentTarget));
+  el.detailPane.querySelector('[data-note="continue"]').addEventListener("click", () => {
+    try {
+      sessionStorage.setItem(BIG_SCREEN_OK_KEY, "1");
+    } catch {}
+    renderRoute();
+  });
 }
 
 // A throw while mounting usually means the browser mixed cached old modules with new ones
