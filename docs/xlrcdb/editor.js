@@ -16,6 +16,7 @@ import { createAudioEngine } from "./audio.js";
 import { createTimeline } from "./timeline.js";
 import { createSyncMode } from "./sync-mode.js";
 import { createHistory } from "./history.js";
+import { clearLineWords, setWordTag, splitRepeatedLine, stampWord, wordTags, writeLineWords } from "./word-timing.js";
 import {
   addTranslationLane,
   adjustSelection,
@@ -101,6 +102,9 @@ export function createEditor(container, options = {}) {
     resolveToken: 0,
     audioSeconds: Number.NaN,
     order: [], // parsed lines in playback order (see playbackOrder), shared with audio + timeline
+    words: [], // word tags for the timeline: { key, line, tag, time, label } sorted by time
+    wordEl: null, // preview line whose words are lit
+    wordLit: -2,
     activePos: -1,
     loopOn: false,
     trFilter: "",
@@ -202,7 +206,9 @@ export function createEditor(container, options = {}) {
     getEntries: () => state.order,
     getActive: () => state.activePos,
     getLoop: () => audio.getLoop(),
+    getWords: () => state.words,
     onRetime: retime,
+    onRetimeWord: retimeWord,
     onPick: (entry) => jumpToLine(entry.line)
   });
 
@@ -212,7 +218,11 @@ export function createEditor(container, options = {}) {
       getOrder: () => state.order,
       getOffset: offsetMs,
       onActiveLine: onActivePos,
-      onTick: () => timeline.tick(),
+      onTick: () => {
+        timeline.tick();
+        sync.tick();
+        updateWordHighlight();
+      },
       onDuration: onAudioDuration,
       onPeaks: (peaks) => timeline.setPeaks(peaks),
       onEmbeddedLyrics: onEmbeddedLyrics
@@ -227,7 +237,15 @@ export function createEditor(container, options = {}) {
 
   const sync = createSyncMode(el.sync, {
     getSource: () => el.area.value,
+    lang: () => state.parsed.meta.lang || "",
     stamp: (line, ms) => applyEdit(setLineTimestamp(el.area.value, line, ms), { kind: "stamp" }),
+    stampWord: (line, chips, index, ms) => applyEdit(stampWord(el.area.value, line, chips, index, ms), { kind: "stamp" }),
+    setWords: (line, chips) => applyEdit(writeLineWords(el.area.value, line, chips), { kind: "edit" }),
+    clearWords: (line) => applyEdit(clearLineWords(el.area.value, line), { kind: "edit" }),
+    splitRepeat: (line) => {
+      const result = splitRepeatedLine(el.area.value, line);
+      if (result) applyEdit(result.text, { kind: "edit" });
+    },
     insertGap: (line, ms) => applyEdit(insertLineBefore(el.area.value, line, `[${formatTimestamp(ms)}]`), { kind: "stamp" }),
     undo: () => undo(),
     timeMs: () => audio.currentTimeMs() - offsetMs(),
@@ -438,20 +456,23 @@ export function createEditor(container, options = {}) {
     paint();
   }
 
-  function restore(snap) {
+  function restore(snap, direction) {
     if (!snap) return;
+    const before = el.area.value;
     el.area.value = snap.text;
     el.area.setSelectionRange(snap.start, snap.end);
     afterEdit();
     revealCaret();
+    // Tap to time follows any undo / redo back to the line (and word) it touched.
+    if (sync.isOpen()) sync.followChange(before, snap.text, direction);
   }
 
   function undo() {
-    restore(history.undo());
+    restore(history.undo(), "undo");
   }
 
   function redo() {
-    restore(history.redo());
+    restore(history.redo(), "redo");
   }
 
   function onAreaBeforeInput(e) {
@@ -637,6 +658,13 @@ export function createEditor(container, options = {}) {
     if (phase === "end") state.dragSeq++;
   }
 
+  // A word tick dragged on the timeline.
+  function retimeWord(word, seconds, phase) {
+    const ms = Math.round(seconds * 1000) - offsetMs();
+    applyEdit(setWordTag(el.area.value, word.line, word.tag, ms), { kind: `drag:${state.dragSeq}` });
+    if (phase === "end") state.dragSeq++;
+  }
+
   function toggleLoop(force) {
     state.loopOn = typeof force === "boolean" ? force : !state.loopOn;
     setPressed(el.loopBtn, state.loopOn);
@@ -809,6 +837,19 @@ export function createEditor(container, options = {}) {
       time: (entry.timestamp + offset) / 1000,
       label: entry.text
     }));
+    // Word tags of each timed line (once per source line; a repeated line's words only fit
+    // its first time).
+    const sourceLines = el.area.value.split("\n");
+    state.words = state.order
+      .filter((entry) => entry.tsIndex === 0)
+      .flatMap((entry) => wordTags(sourceLines[entry.line - 1] ?? "").map((word, tag) => ({
+        key: `${entry.line}:${tag}`,
+        line: entry.line,
+        tag,
+        time: (word.ms + offset) / 1000,
+        label: word.label
+      })))
+      .sort((a, b) => a.time - b.time);
 
     buildHighlight(el.highlight, el.area.value, output.errorLines, output.warnLines);
     renderGutter(el.area.value, output.errorLines, output.warnLines);
@@ -1463,6 +1504,8 @@ export function createEditor(container, options = {}) {
     if (![...el.trFilter.options].some((option) => option.value === state.trFilter)) state.trFilter = "";
     el.trFilter.value = state.trFilter;
     el.trFilter.closest("label").hidden = langs.filter((tag) => tag !== parsed.meta.lang).length === 0;
+    state.wordEl = null;
+    state.wordLit = -2;
     const prev = state.activeIdx;
     state.activeIdx = -1;
     setActiveLine(prev, { scroll: false });
@@ -1558,6 +1601,36 @@ export function createEditor(container, options = {}) {
     // Mirror the playing line onto the source side: accent gutter number + band.
     const srcLine = idx >= 0 && state.parsed.lines[idx] ? state.parsed.lines[idx].line : 0;
     updateEditorActive(srcLine);
+    updateWordHighlight();
+  }
+
+  // Word-timed lines light up word by word while playing: sung words full, the current one in
+  // the accent, the rest dim. Repeats of a line are skipped (its word times fit the first).
+  function updateWordHighlight() {
+    const idx = state.activeIdx;
+    const node = idx >= 0 ? state.lineEls[idx] : null;
+    if (state.wordEl && state.wordEl !== node) {
+      state.wordEl.classList.remove("words-live");
+      for (const word of state.wordEl.querySelectorAll(".rw")) word.classList.remove("sung", "now");
+      state.wordEl = null;
+      state.wordLit = -2;
+    }
+    const line = node ? state.parsed.lines[idx] : null;
+    const entry = state.order[state.activePos];
+    if (!line || !line.words.length || !entry || entry.tsIndex > 0 || !audio.hasAudio()) return;
+    const now = audio.currentTimeMs() - offsetMs();
+    let lit = -1;
+    line.words.forEach((word, i) => {
+      if (word.timestamp <= now) lit = i;
+    });
+    if (node === state.wordEl && lit === state.wordLit) return;
+    state.wordEl = node;
+    state.wordLit = lit;
+    node.classList.add("words-live");
+    node.querySelectorAll(".rw").forEach((word, i) => {
+      word.classList.toggle("sung", i < lit);
+      word.classList.toggle("now", i === lit);
+    });
   }
 
   function updateEditorActive(srcLine) {
@@ -1597,14 +1670,19 @@ export function createEditor(container, options = {}) {
         <h4>Timeline</h4>
         ${row(["Scroll"], "Zoom in and out")}
         ${row(["Shift+Scroll"], "Pan")}
-        ${row(["Drag a marker"], "Retime that line")}
+        ${row(["Drag a marker"], "Retime that line (its words move with it)")}
+        ${row(["Drag a word tick"], "Retime that word (zoom in to see them)")}
         ${row(["Double-click"], "Edit that line")}
       </div>
       <div class="ed-keys-group">
         <h4>Tap to time</h4>
-        ${row(["Space"], "Stamp and move to the next line")}
+        ${row(["Space"], "Stamp and move on (line, or word in Words)")}
         ${row(["⌫"], "Undo the last stamp")}
         ${row(["."], "Mark a gap or the end")}
+        ${row(["W"], "Switch between Lines and Words")}
+        ${row(["R"], "Words: replay the line")}
+        ${row(["S"], "Words: split or join words")}
+        ${row(["Tab"], "Words: skip or unskip a line (skipped keeps just its line time)")}
       </div>`;
   }
 

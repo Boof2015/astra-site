@@ -11,14 +11,21 @@
 //   getDuration(): seconds, getTime(): seconds, isPlaying(): bool, seek(seconds),
 //   getEntries(): [{ key, time (seconds), label, isEmpty }] sorted by time,
 //   getActive(): index into getEntries() or -1, getLoop(): { start, end } | null,
-//   onRetime(entry, seconds, phase: "move" | "end"), onPick(entry)
+//   getWords(): [{ key, time (seconds), label }] word tags sorted by time,
+//   onRetime(entry, seconds, phase: "move" | "end"), onRetimeWord(word, seconds, phase),
+//   onPick(entry)
 // }
+//
+// Word tags show as short ticks along the bottom of the lane once it's zoomed in enough to
+// tell them apart, and drag like line markers.
 
 const RULER = 16; // css px
 const LABEL_ROOM = 44; // px a region needs before its label is drawn
 const MIN_SPAN = 1.5; // seconds visible at maximum zoom
 const HIT = 6; // px either side of a marker that grabs it
 const TICK_STEPS = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120];
+const WORD_BAND = 18; // px along the bottom of the lane for word ticks
+const WORD_ZOOM = 25; // px per second before word ticks are drawn
 
 // hosts: { overview: element, lane: element }
 export function createTimeline(hosts, hooks) {
@@ -40,7 +47,7 @@ export function createTimeline(hosts, hooks) {
   let overviewCache = null; // { muted, played } offscreen canvases
   let view = { start: 0, span: 0 };
   let size = { w: 0, h: 0, ow: 0, oh: 0, dpr: 1 };
-  let hover = null; // { x, entry }
+  let hover = null; // { x, entry, word }
   let drag = null;
   let lastUserView = 0;
   const colors = {};
@@ -196,6 +203,36 @@ export function createTimeline(hosts, hooks) {
         c.restore();
       }
     });
+
+    // word ticks
+    if (wordsShown()) {
+      const words = hooks.getWords();
+      const top = h - WORD_BAND;
+      c.fillStyle = "rgba(0,0,0,0.3)";
+      c.fillRect(0, top, w, WORD_BAND);
+      c.font = "10px Inter, system-ui, sans-serif";
+      words.forEach((word, i) => {
+        const x = timeToX(word.time);
+        if (x < -200 || x > w + 2) return;
+        c.fillStyle = "rgba(240,240,240,0.6)";
+        c.fillRect(Math.round(x), top + 2, 1, WORD_BAND - 4);
+        const next = words[i + 1] ? timeToX(words[i + 1].time) : timeToX(d);
+        const room = next - x - 6;
+        if (room > 16 && word.label) {
+          c.save();
+          c.beginPath();
+          c.rect(x + 2, top, room + 2, WORD_BAND);
+          c.clip();
+          c.fillStyle = colors.secondary;
+          c.fillText(word.label, x + 5, top + WORD_BAND / 2 + 1);
+          c.restore();
+        }
+      });
+    }
+  }
+
+  function wordsShown() {
+    return Boolean(hooks.getWords?.().length) && size.w / view.span >= WORD_ZOOM;
   }
 
   function drawOver() {
@@ -224,13 +261,20 @@ export function createTimeline(hosts, hooks) {
       c.fillRect(x0, RULER, x1 - x0, h - RULER);
     }
 
-    const hot = drag?.kind === "marker" ? drag.entry : hover?.entry;
+    const hotWord = drag?.kind === "word" ? drag.word : drag ? null : hover?.word;
+    if (hotWord) {
+      const x = timeToX(drag?.kind === "word" ? drag.time : hotWord.time);
+      c.fillStyle = colors.accent;
+      c.fillRect(Math.round(x) - 1, h - WORD_BAND, 3, WORD_BAND);
+    }
+
+    const hot = drag?.kind === "marker" ? drag.entry : hotWord ? null : hover?.entry;
     if (hot) {
       const x = drag?.kind === "marker" ? timeToX(drag.time) : timeToX(hot.time);
       c.fillStyle = colors.accent;
       c.fillRect(Math.round(x) - 1, RULER, 3, h - RULER);
       c.fillRect(Math.round(x) - 4, RULER, 9, 4);
-    } else if (hover) {
+    } else if (hover && !hotWord) {
       c.fillStyle = "rgba(240,240,240,0.25)";
       c.fillRect(Math.round(hover.x), 0, 1, h);
     }
@@ -342,6 +386,20 @@ export function createTimeline(hosts, hooks) {
     return best;
   }
 
+  function wordAt(x, y) {
+    if (y < size.h - WORD_BAND - 2 || !wordsShown()) return null;
+    let best = null;
+    let bestDist = HIT + 1;
+    for (const word of hooks.getWords()) {
+      const dist = Math.abs(timeToX(word.time) - x);
+      if (dist < bestDist) {
+        best = word;
+        bestDist = dist;
+      }
+    }
+    return best;
+  }
+
   function regionAt(t) {
     const entries = hooks.getEntries();
     let found = null;
@@ -355,10 +413,12 @@ export function createTimeline(hosts, hooks) {
   function showTip(x) {
     const t = xToTime(x);
     const region = regionAt(t);
-    const label = hover?.entry
-      ? `Drag to retime · ${formatTime(hover.entry.time)}`
-      : `${formatTime(t)}${region && !region.isEmpty ? `  ·  ${truncate(region.label, 36)}` : ""}`;
-    tip.textContent = drag?.kind === "marker" ? formatTime(drag.time) : label;
+    const label = hover?.word
+      ? `Drag to retime "${truncate(hover.word.label, 24)}" · ${formatTime(hover.word.time)}`
+      : hover?.entry
+        ? `Drag to retime · ${formatTime(hover.entry.time)}`
+        : `${formatTime(t)}${region && !region.isEmpty ? `  ·  ${truncate(region.label, 36)}` : ""}`;
+    tip.textContent = drag?.kind === "marker" || drag?.kind === "word" ? formatTime(drag.time) : label;
     tip.style.left = `${Math.min(Math.max(x, 40), size.w - 40)}px`;
     tip.style.display = "block";
   }
@@ -368,12 +428,19 @@ export function createTimeline(hosts, hooks) {
     return e.clientX - lane.getBoundingClientRect().left;
   }
 
+  function laneY(e) {
+    return e.clientY - lane.getBoundingClientRect().top;
+  }
+
   function onLaneDown(e) {
     if (!duration() || e.button !== 0) return;
     const x = laneX(e);
     lane.setPointerCapture(e.pointerId);
-    const hit = markerAt(x);
-    if (hit) {
+    const word = wordAt(x, laneY(e));
+    const hit = word ? null : markerAt(x);
+    if (word) {
+      drag = { kind: "word", word, key: word.key, time: word.time, moved: false };
+    } else if (hit) {
       drag = { kind: "marker", entry: hit, key: hit.key, time: hit.time, moved: false };
     } else {
       drag = { kind: "scrub" };
@@ -394,12 +461,22 @@ export function createTimeline(hosts, hooks) {
       drawOver();
       return;
     }
+    if (drag?.kind === "word") {
+      drag.time = Math.min(Math.max(xToTime(x), 0), duration());
+      drag.moved = true;
+      hooks.onRetimeWord(drag.word, drag.time, "move");
+      drag.word = hooks.getWords().find((word) => word.key === drag.key) ?? drag.word;
+      showTip(x);
+      drawOver();
+      return;
+    }
     if (drag?.kind === "scrub") {
       hooks.seek(xToTime(x));
       return;
     }
-    hover = { x, entry: markerAt(x) };
-    lane.style.cursor = hover.entry ? "ew-resize" : "crosshair";
+    const word = wordAt(x, laneY(e));
+    hover = { x, word, entry: word ? null : markerAt(x) };
+    lane.style.cursor = hover.word || hover.entry ? "ew-resize" : "crosshair";
     showTip(x);
     drawOver();
   }
@@ -409,6 +486,7 @@ export function createTimeline(hosts, hooks) {
       lane.releasePointerCapture(e.pointerId);
     } catch (_) {}
     if (drag?.kind === "marker" && drag.moved) hooks.onRetime(drag.entry, drag.time, "end");
+    if (drag?.kind === "word" && drag.moved) hooks.onRetimeWord(drag.word, drag.time, "end");
     drag = null;
     drawOver();
   }

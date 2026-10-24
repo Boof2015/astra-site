@@ -26,16 +26,21 @@ export function leadingTimestamps(raw) {
   return out;
 }
 
-// Set the tsIndex-th leading timestamp of a line (adding one if the line has none).
-export function setLineTimestamp(source, lineNumber, ms, tsIndex = 0) {
+// Set the tsIndex-th leading timestamp of a line (adding one if the line has none). A line's
+// word timing moves along with it (moveWords), so retiming a word-timed line keeps its words
+// in step. Lines sung at several times are left alone: their word times only fit one.
+export function setLineTimestamp(source, lineNumber, ms, tsIndex = 0, { moveWords = true } = {}) {
   const lines = source.split("\n");
   const raw = lines[lineNumber - 1];
   if (raw === undefined) return source;
-  const stamp = `[${formatTimestamp(Math.max(0, Math.round(ms)))}]`;
+  const time = Math.max(0, Math.round(ms));
+  const stamp = `[${formatTimestamp(time)}]`;
   const stamps = leadingTimestamps(raw);
   const target = stamps[tsIndex];
   if (target) {
-    lines[lineNumber - 1] = raw.slice(0, target.start) + stamp + raw.slice(target.end);
+    let rest = raw.slice(target.end);
+    if (moveWords && stamps.length === 1) rest = shiftWordTags(rest, time - target.ms);
+    lines[lineNumber - 1] = raw.slice(0, target.start) + stamp + rest;
   } else if (stamps.length) {
     const end = stamps[stamps.length - 1].end;
     lines[lineNumber - 1] = raw.slice(0, end) + stamp + raw.slice(end);
@@ -51,6 +56,16 @@ export function nudgeLineTimestamp(source, lineNumber, deltaMs, tsIndex = 0) {
   const stamp = raw === undefined ? null : leadingTimestamps(raw)[tsIndex];
   if (!stamp) return source;
   return setLineTimestamp(source, lineNumber, stamp.ms + deltaMs, tsIndex);
+}
+
+// Move every <mm:ss.xx> word tag in a piece of line text by deltaMs (never below zero).
+export function shiftWordTags(text, deltaMs) {
+  if (!deltaMs) return text;
+  return text.replace(WORD_TIMESTAMP, (match) => {
+    const [, minutes, seconds, fraction = ""] = match.match(/<(\d+):(\d{2})(?:\.(\d{1,3}))?>/u);
+    const ms = Number(minutes) * 60000 + Number(seconds) * 1000 + (fraction ? Number(fraction.padEnd(3, "0")) : 0);
+    return `<${formatTimestamp(Math.max(0, ms + deltaMs))}>`;
+  });
 }
 
 export function insertLineBefore(source, lineNumber, text) {

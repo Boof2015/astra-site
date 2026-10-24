@@ -1866,8 +1866,9 @@ body.submit-mode {
   display: flex;
   align-items: center;
   gap: 0.9rem;
-  flex-wrap: wrap;
 }
+
+.sync-head > * { flex-shrink: 0; }
 
 .sync-title {
   color: var(--text-primary);
@@ -1878,10 +1879,15 @@ body.submit-mode {
   text-transform: uppercase;
 }
 
-.sync-progress {
+.sync-head > .sync-progress {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-muted);
   font-family: var(--mono);
   font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sync-latency {
@@ -2023,6 +2029,7 @@ body.submit-mode {
 
 .sync-ts.none { color: var(--text-muted); }
 .sync-text { color: var(--text-primary); }
+.sync-text rt { font-size: 0.45em; font-weight: 400; }
 .sync-gap { color: var(--text-muted); font-weight: 400; }
 .sync-empty { color: var(--text-muted); text-align: center; }
 
@@ -2034,6 +2041,7 @@ body.submit-mode {
 }
 
 .sync-tap {
+  flex-shrink: 0;
   align-self: center;
   display: inline-flex;
   align-items: center;
@@ -2059,6 +2067,184 @@ body.submit-mode {
   justify-content: center;
   gap: 0.4rem;
 }
+
+/* Lines | Words switch, and what shows in each mode. */
+.sync-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border-bright);
+  border-radius: 7px;
+  background: var(--bg-panel);
+}
+
+.sync-switch button {
+  height: 24px;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.sync-switch button:hover { color: var(--text-primary); }
+.sync-switch button.active { color: var(--bg-primary); background: var(--text-primary); font-weight: 600; }
+
+.sync-mode .for-words { display: none; }
+.sync-mode.words .for-words { display: inline-flex; }
+.sync-mode.words .for-lines { display: none; }
+.sync-tap .for-words, .sync-tap .for-lines { pointer-events: none; }
+.sync-mode.words .sync-tap .for-words { display: inline; }
+.sync-keys button.active { color: var(--text-primary); border-color: var(--accent); }
+
+.sync-hint {
+  min-height: 2.6em;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.sync-hint:empty { display: none; }
+.sync-mode.words .sync-hint:empty { display: block; }
+
+.sync-link {
+  padding: 0;
+  border: 0;
+  color: var(--text-secondary);
+  background: none;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.sync-link:hover { color: var(--text-primary); }
+
+/* Words mode: the current line as chips. Room for two rows so moving between lines
+   doesn't push the controls around. */
+.sync-line.cur.words { align-items: center; }
+
+.sync-chips {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-content: center;
+  align-items: flex-end;
+  gap: 0.35rem;
+  min-height: 7.4rem;
+}
+
+.sync-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 2.4rem;
+  padding: 0.3rem 0.5rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sync-chip:hover { border-color: var(--border-bright); }
+.sync-chip.stamped { color: var(--text-primary); }
+.sync-chip.next { border-color: var(--accent); background: rgba(56, 189, 248, 0.08); }
+.sync-chip.now .chip-text { color: var(--accent); }
+.chip-text { line-height: 1.25; white-space: pre; }
+.chip-text rt { font-size: 0.45em; font-weight: 400; }
+
+.chip-ts {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 400;
+}
+
+.sync-chip.stamped .chip-ts { color: var(--text-secondary); }
+
+/* Split / join: the line letter by letter with a slot between letters. Words stay on one
+   row; a slot's hit area is wider than it looks so letters stay close together. */
+.sync-chips.adjust { align-items: center; gap: 0.2rem 0; }
+.sync-chunk { display: inline-flex; align-items: center; white-space: nowrap; }
+.sync-atom { color: var(--text-primary); line-height: 1.4; white-space: pre; }
+.sync-atom rt { font-size: 0.45em; font-weight: 400; }
+
+.sync-cut {
+  position: relative;
+  align-self: stretch;
+  flex: 0 0 auto;
+  width: 5px;
+  min-height: 2.4rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sync-cut::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+}
+
+.sync-cut::after {
+  content: "";
+  position: absolute;
+  top: 16%;
+  bottom: 16%;
+  left: 50%;
+  width: 1px;
+  background: var(--text-muted);
+  opacity: 0;
+}
+
+.sync-cut:hover::after { opacity: 1; }
+.sync-cut.on { width: 18px; }
+.sync-cut.on::after { width: 2px; margin-left: -1px; background: var(--accent); opacity: 1; }
+.sync-cut.on:hover::after { background: var(--text-muted); }
+
+/* Skipped lines (Words mode): left timed by line only. */
+.sync-skipped {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sync-line.cur.words.skipped .sync-chip { opacity: 0.45; }
+/* Wide enough for "Unskip line" so the row doesn't shift when the label changes. */
+.sync-keys .sync-skip { min-width: 8rem; justify-content: center; }
+
+.sync-repeat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 7.4rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.sync-repeat p { margin: 0; }
+.sync-repeat strong { color: var(--text-primary); font-weight: 600; }
+
+/* Preview while playing: the line's words light up one by one. */
+.rline.words-live .rw { color: var(--text-muted); transition: color 60ms linear; }
+.rline.words-live .rw.sung { color: var(--text-primary); }
+.rline.words-live .rw.now { color: var(--accent); }
 
 /* "Restore unsaved changes?" for edits. */
 .ed-banner {

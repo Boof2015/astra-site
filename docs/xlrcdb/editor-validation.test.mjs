@@ -250,3 +250,19 @@ test("language fixes give the same result in either order", () => {
 test("replacing a tag never leaves a duplicate in [langs:]", () => {
   assert.equal(replaceLanguageTag("[langs:english,ko,en]\n", "english", "en"), "[langs:en,ko]\n");
 });
+
+test("word timing: words past the next line, and repeated lines with word timing", () => {
+  const late = "[00:01.00]<00:01.00>a <00:03.50>b\n[00:03.00]next\n";
+  assert.deepEqual(lintTiming(parseXLRC(late)).map((w) => w.code), ["word-past-next"]);
+  // Another singer's line overlapping is a duet, not a mistake.
+  const duet = "[00:01.00][v:A]<00:01.00>a <00:03.50>b\n[00:03.00][v:B]next\n";
+  assert.deepEqual(lintTiming(parseXLRC(duet)), []);
+
+  const repeat = "[00:01.00][00:10.00]<00:01.00>la <00:01.50>la\n[00:05.00]mid\n";
+  const [warning] = lintTiming(parseXLRC(repeat)).filter((w) => w.code === "word-timing-repeat");
+  assert.equal(warning.line, 1);
+  assert.equal(
+    applyFix(repeat, parseXLRC(repeat), warning.fix),
+    "[00:01.00]<00:01.00>la <00:01.50>la\n[00:05.00]mid\n[00:10.00]<00:10.00>la <00:10.50>la\n"
+  );
+});

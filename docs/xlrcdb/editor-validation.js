@@ -11,6 +11,7 @@ import {
   languageName,
   suggestReplacement
 } from "./languages.js";
+import { splitRepeatedLine } from "./word-timing.js";
 
 const HEADER_TAG_PATTERN = /^\[([A-Za-z][A-Za-z0-9_-]*):([^\]]*)\]\s*$/u;
 const TRANSLATION_TAG_PATTERN = /^\[>([^\]]+)\]/u;
@@ -134,6 +135,35 @@ export function lintTiming(parsed, { endMs } = {}) {
     }
   }
 
+  // Word timing only fits one time, but parsers copy it to every time a repeated line is sung.
+  const timesPerLine = new Map();
+  for (const line of parsed?.lines ?? []) timesPerLine.set(line.line, (timesPerLine.get(line.line) ?? 0) + 1);
+  for (const line of lines) {
+    const times = timesPerLine.get(line.line) ?? 1;
+    if (times > 1 && line.words?.length) {
+      warnings.push({
+        code: "word-timing-repeat",
+        message: `Sung ${times} times but the word timing only fits the first`,
+        line: line.line,
+        fix: { kind: "split-repeat", line: line.line }
+      });
+    }
+  }
+
+  // A word that starts after the next line (same singer) has begun.
+  const byTime = [...lines].sort((a, b) => a.timestamp - b.timestamp);
+  byTime.forEach((line, i) => {
+    if (!line.words?.length) return;
+    const next = byTime.slice(i + 1).find((other) => (other.voice ?? null) === (line.voice ?? null) && other.timestamp > line.timestamp);
+    if (next && line.words.some((word) => word.timestamp >= next.timestamp)) {
+      warnings.push({
+        code: "word-past-next",
+        message: `A word starts after the next line does (${formatMs(next.timestamp)})`,
+        line: line.line
+      });
+    }
+  });
+
   if (pastEnd.length > 0) {
     warnings.push({
       code: "past-end",
@@ -193,6 +223,7 @@ export function fixLabel(fix) {
     case "remove-empty-translations": return "Remove empty lines";
     case "set-length": return `Use ${fix.value}`;
     case "set-header": return `Use ${fix.value}`;
+    case "split-repeat": return "Give each its own line";
     default: return "Fix";
   }
 }
@@ -204,6 +235,7 @@ export function applyFix(source, parsed, fix) {
     case "remove-empty-translations": return removeEmptyTranslations(source);
     case "set-length": return patchHeader(source, "length", fix.value);
     case "set-header": return patchHeader(source, fix.key, fix.value);
+    case "split-repeat": return splitRepeatedLine(source, fix.line)?.text ?? source;
     default: return source;
   }
 }

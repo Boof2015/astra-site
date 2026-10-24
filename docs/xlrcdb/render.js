@@ -174,6 +174,19 @@ export function renderLyrics(container, parsed, activeLang = "", { showAll = fal
     if (line.isEmpty) {
       text.classList.add("empty");
       text.textContent = "·";
+    } else if (line.words.length) {
+      // Word-timed: one span per word (class "rw"), so a player can light them up in turn.
+      // Text before the first word tag isn't a timed word and stays plain.
+      text.classList.add("has-words");
+      const covered = line.words.reduce((n, word) => n + word.text.length, 0);
+      const prefix = line.text.slice(0, Math.max(0, line.text.length - covered));
+      if (prefix) renderFurigana(text, prefix, line.furigana.filter((f) => f.end <= prefix.length));
+      for (const word of line.words) {
+        const w = document.createElement("span");
+        w.className = "rw";
+        renderFurigana(w, word.text, word.furigana);
+        text.appendChild(w);
+      }
     } else {
       renderFurigana(text, line.text, line.furigana);
     }
