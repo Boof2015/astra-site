@@ -13,6 +13,31 @@ import {
   LANG_LABELS
 } from "./render.js";
 import { createAudioEngine } from "./audio.js";
+import { createTimeline } from "./timeline.js";
+import { createSyncMode } from "./sync-mode.js";
+import { createHistory } from "./history.js";
+import {
+  addTranslationLane,
+  adjustSelection,
+  displayText,
+  hasLyricText,
+  insertLineBefore,
+  insertLyrics,
+  nextEmptyTranslation,
+  nudgeLineTimestamp,
+  playbackOrder,
+  setLineTimestamp,
+  syncCandidates
+} from "./editor-transforms.js";
+import {
+  clearTextDraft,
+  draftKey,
+  fingerprint,
+  loadAudio,
+  loadTextDraft,
+  saveAudio,
+  saveTextDraft
+} from "./drafts.js";
 import {
   CONTRIBUTING_URL,
   formatDuration,
@@ -31,13 +56,15 @@ import {
   lintTiming,
   patchHeader,
   readHeaders,
+  syncLangsHeader,
   validateLanguageMetadata
 } from "./editor-validation.js";
-import { isValidLanguageTag, languageName, suggestLanguages } from "./languages.js";
+import { canonicalTag, isValidLanguageTag, languageName, suggestLanguages } from "./languages.js";
 import { attachSuggest } from "./suggest.js";
 
-const SUBMISSION_STORAGE_KEY = "xlrcdb-submission-draft";
-const LEADING_TIMESTAMP = /^\[\d+:\d{2}(?:\.\d{1,3})?\]/u;
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/u.test(navigator.platform || navigator.userAgent);
+const ALT = IS_MAC ? "⌥" : "Alt+";
+const MOD = IS_MAC ? "⌘" : "Ctrl+";
 const LENGTH_PATTERN = /^(\d+):([0-5]\d)$/u;
 const DEFAULT_SOURCE = "[ti:]\n[ar:]\n[length:]\n[lang:]\n[langs:]\n\n[00:00.00]\n";
 // The package's shape-only language checks; languages.js is stricter and gives line numbers.
@@ -47,6 +74,7 @@ const FIELD_LABELS = { ar: "Artist", ti: "Track", length: "Length", lang: "Prima
 const ICON_IMPORT = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11 4 7h2.5V2h3v5H12L8 11Z"/><path d="M3 13h10v1H3z"/></svg>';
 const ICON_AUDIO = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 3v7.3A2.5 2.5 0 1 0 7 12V6h4V3H6Z"/></svg>';
 const ICON_PLAY = '<svg class="i-play" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5-9-5.5Z"/></svg>';
+const ICON_TRANSLATE = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h7v1.5H6.6c-.3 1.6-1 3-2 4.1.6.5 1.3.9 2 1.2l-.5 1.4c-.9-.4-1.7-.9-2.5-1.6-.8.7-1.7 1.2-2.7 1.6L.4 9.8c.9-.3 1.7-.8 2.4-1.4-.6-.8-1.1-1.6-1.4-2.5h1.6c.2.5.5 1 .9 1.5.6-.8 1.1-1.8 1.3-2.9H2V3Z"/><path d="M11 6h1.6L16 14h-1.6l-.8-2h-3.6l-.8 2H7.6L11 6Zm-.4 4.6h2.4l-1.2-3-1.2 3Z"/></svg>';
 const ICON_PAUSE = '<svg class="i-pause" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>';
 
 export function createEditor(container, options = {}) {
@@ -65,6 +93,17 @@ export function createEditor(container, options = {}) {
     artistResolution: { status: "empty" },
     resolveToken: 0,
     audioSeconds: Number.NaN,
+    order: [], // parsed lines in playback order (see playbackOrder), shared with audio + timeline
+    activePos: -1,
+    loopOn: false,
+    trFilter: "",
+    dragSeq: 0,
+    audioName: "",
+    embedded: null, // { text, name } lyrics found in the loaded audio file's tags
+    draftKey: draftKey(mode, initial.trackId),
+    draftTimer: 0,
+    // The published file this edit started from (null when it came from "Submit as an edit").
+    original: typeof initial.original === "string" ? initial.original : null,
     popOpen: false,
     problemList: [],
     notes: [],
@@ -110,6 +149,26 @@ export function createEditor(container, options = {}) {
     stamp: root.querySelector("#edStamp"),
     speed: root.querySelector("#edSpeed"),
     speedVal: root.querySelector("#edSpeedVal"),
+    speedPresets: root.querySelector("#edSpeedPresets"),
+    overviewHost: root.querySelector("#edOverview"),
+    laneHost: root.querySelector("#edLane"),
+    tlLoad: root.querySelector("#edTlLoad"),
+    tlReload: root.querySelector("#edTlReload"),
+    zoomIn: root.querySelector("#edZoomIn"),
+    zoomOut: root.querySelector("#edZoomOut"),
+    zoomFit: root.querySelector("#edZoomFit"),
+    loopBtn: root.querySelector("#edLoop"),
+    syncBtn: root.querySelector("#edSyncBtn"),
+    keysBtn: root.querySelector("#edKeysBtn"),
+    keysPop: root.querySelector("#edKeysPop"),
+    sync: root.querySelector("#edSync"),
+    trFilter: root.querySelector("#edTrFilter"),
+    trBtn: root.querySelector("#edTrBtn"),
+    trPop: root.querySelector("#edTrPop"),
+    trLang: root.querySelector("#edTrLang"),
+    trHint: root.querySelector("#edTrHint"),
+    trAdd: root.querySelector("#edTrAdd"),
+    banner: root.querySelector("#edBanner"),
     audio: root.querySelector("#edAudio"),
     statusText: root.querySelector("#edStatusText"),
     pathText: root.querySelector("#edPath"),
@@ -123,26 +182,50 @@ export function createEditor(container, options = {}) {
   let resolveTimer = 0;
   const suggests = [];
 
-  // ── audio engine ──
+  const history = createHistory();
+
+  // ── timeline + audio engine ──
+  const timeline = createTimeline({ overview: el.overviewHost, lane: el.laneHost }, {
+    getDuration: () => audio.duration(),
+    getTime: () => audio.currentTime(),
+    isPlaying: () => audio.isPlaying(),
+    seek: (seconds) => audio.seek(seconds),
+    getEntries: () => state.order,
+    getActive: () => state.activePos,
+    getLoop: () => audio.getLoop(),
+    onRetime: retime,
+    onPick: (entry) => jumpToLine(entry.line)
+  });
+
   const audio = createAudioEngine(
+    { audio: el.audio, playBtn: root.querySelector("#edPlay"), time: root.querySelector("#edTime") },
     {
-      audio: el.audio,
-      scrub: root.querySelector("#edScrub"),
-      wave: root.querySelector("#edWave"),
-      markers: root.querySelector("#edMarkers"),
-      playhead: root.querySelector("#edPlayhead"),
-      scrubTip: root.querySelector("#edScrubTip"),
-      playBtn: root.querySelector("#edPlay"),
-      time: root.querySelector("#edTime")
-    },
-    {
-      getLines: () => state.parsed.lines,
-      getOffset: () => state.parsed.meta.offset || 0,
-      onActiveLine: setActiveLine,
+      getOrder: () => state.order,
+      getOffset: offsetMs,
+      onActiveLine: onActivePos,
+      onTick: () => timeline.tick(),
       onDuration: onAudioDuration,
+      onPeaks: (peaks) => timeline.setPeaks(peaks),
       onEmbeddedLyrics: onEmbeddedLyrics
     }
   );
+
+  const sync = createSyncMode(el.sync, {
+    getSource: () => el.area.value,
+    stamp: (line, ms) => applyEdit(setLineTimestamp(el.area.value, line, ms), { kind: "stamp" }),
+    insertGap: (line, ms) => applyEdit(insertLineBefore(el.area.value, line, `[${formatTimestamp(ms)}]`), { kind: "stamp" }),
+    undo: () => undo(),
+    timeMs: () => audio.currentTimeMs() - offsetMs(),
+    seekLyric: (ms) => audio.seek((ms + offsetMs()) / 1000),
+    toggle: () => audio.toggle(),
+    isPlaying: () => audio.isPlaying(),
+    hasAudio: () => audio.hasAudio(),
+    pickAudio: () => el.audioFile.click(),
+    pasteLyrics: () => pasteLyrics(),
+    typeLyrics: () => typeLyrics(),
+    showLine: showSourceLine,
+    onClose: () => setPressed(el.syncBtn, false)
+  });
 
   // ── initial source ──
   if (mode === "edit") {
@@ -150,7 +233,7 @@ export function createEditor(container, options = {}) {
   } else if (typeof initial.source === "string") {
     state.source = initial.source;
   } else {
-    const draft = loadDraft();
+    const draft = loadTextDraft("new")?.text;
     if (initial.artist) {
       // "Create new track" arriving from search/artist: prefill [ar:] on a fresh body.
       state.source = patchHeader(DEFAULT_SOURCE, "ar", initial.artist);
@@ -160,25 +243,34 @@ export function createEditor(container, options = {}) {
     }
   }
   el.area.value = state.source;
+  history.reset(snapshot());
 
   syncMetaFromSource();
   wire();
   paint();
   resolveArtistDebounced(0);
-  el.audio && requestAnimationFrame(() => audio.resize());
+  offerEditDraft();
+  offerSavedAudio();
 
   // ─────────────────────────── wiring ───────────────────────────
   function wire() {
     el.area.addEventListener("input", onSourceInput);
     el.area.addEventListener("scroll", syncScroll);
     el.area.addEventListener("keydown", onAreaKeydown);
-    el.area.addEventListener("click", updateCurline);
-    el.area.addEventListener("keyup", updateCurline);
+    el.area.addEventListener("beforeinput", onAreaBeforeInput);
+    el.area.addEventListener("click", onCaretMove);
+    el.area.addEventListener("keyup", onCaretMove);
+    // Clicking into the source means editing it, so tap-to-time steps aside.
+    el.area.addEventListener("focus", () => sync.isOpen() && sync.close());
+    // On the document, not the editor: after clicking the timeline or the preview, focus
+    // sits on <body>, and undo / shortcuts still have to work.
+    document.addEventListener("keydown", onRootKeydown);
 
     for (const field of [el.artist, el.title, el.length, el.lang, el.langs]) {
       field.addEventListener("input", () => {
         const key = field.dataset.header;
         patchHeaderInPlace(key, field.value);
+        history.commit(snapshot(), `field:${key}`);
         if (key === "ar") resolveArtistDebounced(180);
         persist();
         paint();
@@ -198,23 +290,37 @@ export function createEditor(container, options = {}) {
     el.importFile.addEventListener("change", async () => {
       const file = el.importFile.files?.[0];
       if (!file) return;
-      el.area.value = await file.text();
-      onSourceInput();
+      importText(await file.text());
       el.importFile.value = "";
     });
 
     el.audioBtn.addEventListener("click", () => el.audioFile.click());
+    el.tlLoad.addEventListener("click", () => el.audioFile.click());
     el.audioFile.addEventListener("change", () => {
-      if (el.audioFile.files?.[0]) loadAudio(el.audioFile.files[0]);
+      if (el.audioFile.files?.[0]) loadAudioFile(el.audioFile.files[0]);
       el.audioFile.value = "";
     });
 
     el.stamp.addEventListener("click", stampAtPlayhead);
-    el.speed.addEventListener("input", () => {
-      const r = parseFloat(el.speed.value) || 1;
-      audio.setRate(r);
-      el.speedVal.textContent = `${r}x`;
+    el.speed.addEventListener("input", () => setSpeed(parseFloat(el.speed.value) || 1));
+    el.speedPresets.addEventListener("click", (e) => {
+      const button = e.target.closest("button[data-speed]");
+      if (button) setSpeed(Number(button.dataset.speed));
     });
+    el.zoomIn.addEventListener("click", () => timeline.zoomIn());
+    el.zoomOut.addEventListener("click", () => timeline.zoomOut());
+    el.zoomFit.addEventListener("click", () => timeline.fit());
+    el.loopBtn.addEventListener("click", () => toggleLoop());
+    el.syncBtn.addEventListener("click", () => toggleSync());
+    el.keysBtn.addEventListener("click", () => toggleKeys());
+    el.keysPop.innerHTML = shortcutsHtml();
+    el.preview.addEventListener("click", onPreviewClick);
+    el.trFilter.addEventListener("change", () => {
+      state.trFilter = el.trFilter.value;
+      render();
+    });
+    wireTranslationHelper();
+    el.banner.addEventListener("click", onBannerClick);
 
     el.copyBtn.addEventListener("click", onCopy);
     el.exportBtn.addEventListener("click", onExport);
@@ -257,11 +363,12 @@ export function createEditor(container, options = {}) {
     const arr = [...files];
     const audioFile = arr.find(isAudioFile);
     const lyricFile = arr.find((f) => !isAudioFile(f));
-    if (audioFile) loadAudio(audioFile);
-    if (lyricFile) lyricFile.text().then((text) => {
-      el.area.value = text;
-      onSourceInput();
-    });
+    if (audioFile) loadAudioFile(audioFile);
+    if (lyricFile) lyricFile.text().then(importText);
+  }
+
+  function importText(text) {
+    applyEdit(text, { kind: "import", selection: { start: 0, end: 0 } });
   }
 
   // ─────────────────────────── editing ───────────────────────────
@@ -280,15 +387,33 @@ export function createEditor(container, options = {}) {
     state.source = after;
   }
 
-  // Replace the whole source (quick fixes, imports) keeping the caret roughly in place.
-  function setSource(text) {
-    const caret = Math.min(el.area.selectionStart, text.length);
+  // ── edit pipeline ──
+  // Every change goes through here (or onSourceInput for typing) so it lands in history.
+  function snapshot() {
+    return { text: el.area.value, start: el.area.selectionStart, end: el.area.selectionEnd };
+  }
+
+  function applyEdit(text, { kind = "edit", selection } = {}) {
+    const before = el.area.value;
+    if (text === before) return;
+    const sel = selection ?? adjustSelection(before, text, el.area.selectionStart, el.area.selectionEnd);
     el.area.value = text;
-    el.area.selectionStart = el.area.selectionEnd = caret;
-    onSourceInput();
+    el.area.setSelectionRange(sel.start, sel.end);
+    history.commit(snapshot(), kind);
+    afterEdit();
+  }
+
+  // Quick fixes replace the whole source; the caret stays on the same text.
+  function setSource(text) {
+    applyEdit(text, { kind: "fix" });
   }
 
   function onSourceInput() {
+    history.commit(snapshot(), "type");
+    afterEdit();
+  }
+
+  function afterEdit() {
     state.source = el.area.value;
     syncMetaFromSource();
     resolveArtistDebounced(180);
@@ -296,21 +421,129 @@ export function createEditor(container, options = {}) {
     paint();
   }
 
+  function restore(snap) {
+    if (!snap) return;
+    el.area.value = snap.text;
+    el.area.setSelectionRange(snap.start, snap.end);
+    afterEdit();
+    revealCaret();
+  }
+
+  function undo() {
+    restore(history.undo());
+  }
+
+  function redo() {
+    restore(history.redo());
+  }
+
+  function onAreaBeforeInput(e) {
+    // Edit menu / touch-shake undo would use the textarea's own (broken) history.
+    if (e.inputType === "historyUndo" || e.inputType === "historyRedo") {
+      e.preventDefault();
+      if (e.inputType === "historyUndo") undo();
+      else redo();
+    }
+  }
+
   function onAreaKeydown(e) {
-    if (e.key === "Tab") {
+    if (e.key === "Tab" && !e.altKey && !e.metaKey && !e.ctrlKey) {
       e.preventDefault();
       const s = el.area.selectionStart;
       const en = el.area.selectionEnd;
-      el.area.value = `${el.area.value.slice(0, s)}  ${el.area.value.slice(en)}`;
-      el.area.selectionStart = el.area.selectionEnd = s + 2;
-      onSourceInput();
+      applyEdit(`${el.area.value.slice(0, s)}  ${el.area.value.slice(en)}`, {
+        kind: "type",
+        selection: { start: s + 2, end: s + 2 }
+      });
+    }
+  }
+
+  // Undo/redo anywhere in the editor, plus the Alt shortcuts (bound by e.code so macOS
+  // Option characters like "˚" never reach the text).
+  function onRootKeydown(e) {
+    if (e.defaultPrevented) return;
+    if (e.target !== document.body && !root.contains(e.target)) return;
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && !e.altKey && e.code === "KeyZ") {
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
       return;
     }
-    // Alt+Enter stamps the current line at the audio playhead.
-    if (e.key === "Enter" && e.altKey && audio.hasAudio()) {
+    if (mod && !e.altKey && !e.shiftKey && e.code === "KeyY" && !IS_MAC) {
       e.preventDefault();
-      stampAtPlayhead();
+      redo();
+      return;
     }
+    if (!e.altKey || mod) return;
+    const fine = e.shiftKey;
+    switch (e.code) {
+      case "Enter":
+      case "NumpadEnter":
+        stampAtPlayhead();
+        break;
+      case "KeyK":
+        audio.toggle();
+        break;
+      case "KeyJ":
+        audio.seek(audio.currentTime() - (fine ? 0.5 : 2));
+        break;
+      case "KeyL":
+        audio.seek(audio.currentTime() + (fine ? 0.5 : 2));
+        break;
+      case "ArrowUp":
+        nudgeCaretLine(fine ? -10 : -50);
+        break;
+      case "ArrowDown":
+        nudgeCaretLine(fine ? 10 : 50);
+        break;
+      case "KeyR":
+        toggleLoop();
+        break;
+      case "KeyN":
+        goToNextEmptyTranslation();
+        break;
+      case "KeyT":
+        toggleSync();
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+  }
+
+  function caretLine() {
+    return lineAt(el.area.value, el.area.selectionStart) + 1;
+  }
+
+  // The lyric line the caret belongs to: itself, or for a translation its parent.
+  function caretLyricLine() {
+    const line = caretLine();
+    const candidates = syncCandidates(el.area.value);
+    if (candidates.includes(line)) return line;
+    return [...candidates].reverse().find((n) => n < line) ?? candidates.find((n) => n > line) ?? 0;
+  }
+
+  function revealCaret() {
+    const lineHeight = parseFloat(getComputedStyle(el.area).lineHeight) || 21;
+    const top = (caretLine() - 1) * lineHeight;
+    if (top < el.area.scrollTop || top > el.area.scrollTop + el.area.clientHeight - lineHeight * 2) {
+      el.area.scrollTop = Math.max(0, top - el.area.clientHeight / 3);
+    }
+    syncScroll();
+  }
+
+  // Caret moved by click or keys: remember it for undo, follow it in the preview, and keep a
+  // running loop on the caret's line.
+  function onCaretMove() {
+    history.commit(snapshot());
+    updateCurline();
+    followCaretInPreview();
+    if (state.loopOn) updateLoop();
+  }
+
+  function offsetMs() {
+    return state.parsed.meta.offset || 0;
   }
 
   function syncScroll() {
@@ -356,50 +589,183 @@ export function createEditor(container, options = {}) {
   }
 
   // ─────────────────────────── timing authoring ───────────────────────────
+  // Stamp the caret's lyric line at the playhead and walk the caret down to the next line.
   function stampAtPlayhead() {
-    const stamp = `[${formatTimestamp(Math.round(audio.currentTimeMs()))}]`;
-    const value = el.area.value;
-    const idx = lineAt(value, el.area.selectionStart);
-    const lines = value.split("\n");
-    const line = lines[idx] ?? "";
-    const body = line.replace(LEADING_TIMESTAMP, "");
-    lines[idx] = `${stamp}${body}`;
-    el.area.value = lines.join("\n");
-
-    // Move the caret to the start of the next line so repeated stamping walks down.
-    const nextStart = offsetOfLine(el.area.value, Math.min(idx + 1, lines.length - 1));
-    el.area.selectionStart = el.area.selectionEnd = nextStart;
-    el.area.focus();
-    onSourceInput();
-    audio.refreshMarkers();
-    updateCurline();
+    if (!audio.hasAudio()) return;
+    const line = caretLyricLine();
+    if (!line) return;
+    const text = setLineTimestamp(el.area.value, line, audio.currentTimeMs() - offsetMs());
+    const next = syncCandidates(text).find((n) => n > line);
+    const caret = offsetOfLine(text, (next ?? line + 1) - 1);
+    applyEdit(text, { kind: "stamp", selection: { start: caret, end: caret } });
+    el.area.focus({ preventScroll: true });
+    revealCaret();
   }
 
-  function loadAudio(file) {
+  function nudgeCaretLine(deltaMs) {
+    const line = caretLyricLine();
+    if (!line) return;
+    const text = nudgeLineTimestamp(el.area.value, line, deltaMs);
+    if (text === el.area.value) return;
+    applyEdit(text, { kind: `nudge:${line}` });
+    // While paused, park the playhead on the new time so the change is visible.
+    const entry = state.order.find((item) => item.line === line && item.tsIndex === 0);
+    if (entry && audio.hasAudio() && !audio.isPlaying()) audio.seek(entry.time);
+  }
+
+  // A marker dragged on the timeline.
+  function retime(entry, seconds, phase) {
+    const ms = Math.round(seconds * 1000) - offsetMs();
+    applyEdit(setLineTimestamp(el.area.value, entry.line, ms, entry.tsIndex), { kind: `drag:${state.dragSeq}` });
+    if (phase === "end") state.dragSeq++;
+  }
+
+  function toggleLoop(force) {
+    state.loopOn = typeof force === "boolean" ? force : !state.loopOn;
+    setPressed(el.loopBtn, state.loopOn);
+    updateLoop();
+  }
+
+  // Loop the caret's line (or the playing one) from its start to the next line's.
+  function updateLoop() {
+    if (!state.loopOn) {
+      audio.setLoop(null);
+      timeline.tick();
+      return;
+    }
+    const line = caretLyricLine();
+    let pos = state.order.findIndex((item) => item.line === line);
+    if (pos < 0) pos = state.activePos;
+    const entry = state.order[pos];
+    if (!entry) {
+      audio.setLoop(null);
+      return;
+    }
+    const end = state.order[pos + 1]?.time ?? audio.duration();
+    audio.setLoop({ start: entry.time, end });
+    const now = audio.currentTime();
+    if (now < entry.time || now >= end) audio.seek(entry.time);
+    timeline.reveal(entry.time);
+    timeline.tick();
+  }
+
+  function setSpeed(rate) {
+    const value = Math.min(1, Math.max(0.1, rate));
+    el.speed.value = String(value);
+    audio.setRate(value);
+    el.speedVal.textContent = `${value}x`;
+    for (const button of el.speedPresets.querySelectorAll("button")) {
+      button.classList.toggle("active", Number(button.dataset.speed) === value);
+    }
+  }
+
+  function toggleSync() {
+    if (sync.isOpen()) {
+      sync.close();
+      return;
+    }
+    toggleKeys(false);
+    setPressed(el.syncBtn, true);
+    sync.open(caretLyricLine());
+  }
+
+  // Tap-to-time moved to a line: show it in the source, the timeline and the preview.
+  function showSourceLine(line) {
+    const offset = offsetOfLine(el.area.value, line - 1);
+    el.area.setSelectionRange(offset, offset);
+    history.commit(snapshot());
+    revealCaret();
+    updateCurline();
+    followCaretInPreview(true);
+    const entry = state.order.find((item) => item.line === line);
+    if (entry) timeline.reveal(entry.time);
+  }
+
+  function loadAudioFile(file) {
     el.transport.classList.remove("disabled");
+    el.tlReload.hidden = true;
     el.stamp.disabled = false;
     // Switch the preview to karaoke dimming once audio is driving the active line.
     el.preview.classList.add("synced");
+    state.audioName = file.name;
     audio.loadFile(file);
+    saveAudio(state.draftKey, file);
+    requestAnimationFrame(() => timeline.resize());
+    sync.refresh();
+  }
+
+  // The last audio used for this draft, offered back after a refresh.
+  async function offerSavedAudio() {
+    const file = await loadAudio(state.draftKey);
+    if (!file || audio.hasAudio()) return;
+    el.tlReload.textContent = `Reload ${file.name}`;
+    el.tlReload.hidden = false;
+    el.tlReload.onclick = () => loadAudioFile(file);
   }
 
   function onAudioDuration(seconds) {
     state.audioSeconds = seconds;
+    timeline.reset();
     // Auto-fill [length:] from the loaded audio (design-doc behaviour).
     const current = (state.parsed.meta.length || "").trim();
     if (!current) {
       el.length.value = formatDuration(seconds);
       patchHeaderInPlace("length", el.length.value);
+      history.commit(snapshot(), "auto");
       persist();
     }
     // Re-lint either way: "past the end" and the length check depend on the audio.
     paint();
   }
 
-  function onEmbeddedLyrics(text) {
-    if (el.area.value.trim() && el.area.value !== DEFAULT_SOURCE) return;
-    el.area.value = text;
-    onSourceInput();
+  // Lyrics stored in the audio file's tags. A blank starter takes them straight away; a file
+  // with headers but no lyrics gets an offer; real lyrics are never touched.
+  function onEmbeddedLyrics(text, name) {
+    const source = el.area.value;
+    if (!source.trim() || source === DEFAULT_SOURCE) {
+      if (/^\s*\[(?:ti|ar):[^\]]+\]/mu.test(text)) importText(text);
+      else useLyrics(text);
+      return;
+    }
+    if (hasLyricText(source)) return;
+    state.embedded = { text, name };
+    showBanner(`
+      <span><strong>${escapeHtml(name)}</strong> has lyrics stored in it.</span>
+      <button class="issue-fix primary" type="button" data-banner="use-embedded">Use them</button>
+      <button class="issue-fix" type="button" data-banner="dismiss">No thanks</button>`);
+  }
+
+  // Lyrics in from the clipboard (or the audio's tags), under the existing headers.
+  function useLyrics(text) {
+    const result = insertLyrics(el.area.value, text);
+    const caret = offsetOfLine(result.text, result.line - 1);
+    applyEdit(result.text, { kind: "import", selection: { start: caret, end: caret } });
+    revealCaret();
+  }
+
+  async function pasteLyrics() {
+    let text = "";
+    try {
+      text = await navigator.clipboard.readText();
+    } catch (_) {}
+    if (!text.trim()) {
+      typeLyrics();
+      showToast("info", escapeHtml(`Your browser didn't share the clipboard. Press ${MOD}V to paste into the editor.`), true);
+      return;
+    }
+    useLyrics(text);
+  }
+
+  // Close tap-to-time and put the caret where the lyrics go, under the headers.
+  function typeLyrics() {
+    if (sync.isOpen()) sync.close();
+    const result = insertLyrics(el.area.value, "");
+    const caret = offsetOfLine(result.text, result.line - 1);
+    if (!hasLyricText(el.area.value)) applyEdit(result.text, { kind: "edit", selection: { start: caret, end: caret } });
+    el.area.focus({ preventScroll: true });
+    if (!hasLyricText(el.area.value)) el.area.setSelectionRange(caret, caret);
+    revealCaret();
+    updateCurline();
   }
 
   // ─────────────────────────── validation + paint ───────────────────────────
@@ -419,13 +785,24 @@ export function createEditor(container, options = {}) {
     state.output = output;
     state.parsed = output.parsed;
 
+    const offset = output.parsed.meta.offset || 0;
+    state.order = playbackOrder(output.parsed).map((entry) => ({
+      ...entry,
+      key: `${entry.line}:${entry.tsIndex}`,
+      time: (entry.timestamp + offset) / 1000,
+      label: entry.text
+    }));
+
     buildHighlight(el.highlight, el.area.value, output.errorLines, output.warnLines);
     renderGutter(el.area.value, output.errorLines, output.warnLines);
     syncScroll();
 
-    state.lineEls = renderLyrics(el.preview, output.parsed, "", { showAll: true });
-    setActiveLine(state.activeIdx);
-    audio.refreshMarkers();
+    renderPreview(output.parsed);
+    if (audio.hasAudio()) audio.refreshSync();
+    else setActiveLine(-1);
+    if (state.loopOn) updateLoop();
+    timeline.refresh();
+    sync.refresh();
 
     el.lineCount.textContent = `${output.lineCount} ${output.lineCount === 1 ? "line" : "lines"}`;
     el.pathText.textContent = output.targetPath;
@@ -527,14 +904,25 @@ export function createEditor(container, options = {}) {
       add("error", { code: "parse", message: error.message || "XLRC could not be parsed", line: 0 });
     }
 
-    // Plain text lines (pasted lyrics) are one grouped item, not one error per line.
+    // Plain text lines (pasted lyrics) are one grouped item, not one error per line. A
+    // translation under one of them can't attach yet either; it will once the line is timed.
     const untimed = new Set(findUntimedLines(text));
     const untimedLines = [];
+    const sourceLines = text.split("\n");
+    const parentIsUntimed = (line) => {
+      for (let n = line - 1; n >= 1; n--) {
+        const raw = sourceLines[n - 1].trim();
+        if (raw === "" || raw.startsWith("[>")) continue;
+        return untimed.has(n);
+      }
+      return false;
+    };
     for (const warning of parsed.warnings) {
       if (warning.code === "unrecognized-line" && untimed.has(warning.line)) {
         untimedLines.push(warning.line);
         continue;
       }
+      if (warning.code === "orphan-translation" && parentIsUntimed(warning.line)) continue;
       add("error", { code: warning.code, message: warning.message, line: warning.line });
     }
     if (untimedLines.length > 0) {
@@ -994,13 +1382,127 @@ export function createEditor(container, options = {}) {
     node.title = text;
   }
 
-  function setActiveLine(idx) {
+  // ─────────────────────────── preview ───────────────────────────
+  function renderPreview(parsed) {
+    // The starter's empty [00:00.00] isn't a start on timing; words with a time are.
+    if (!parsed.lines.some((line) => !line.isEmpty)) {
+      renderGuide();
+      state.lineEls = [];
+      el.trFilter.closest("label").hidden = true;
+      return;
+    }
+    // Translation filter: "" all, "none" off, or one language.
+    const filter = state.trFilter;
+    state.lineEls = filter
+      ? renderLyrics(el.preview, parsed, filter === "none" ? "\u0000" : filter, { showAll: false })
+      : renderLyrics(el.preview, parsed, "", { showAll: true });
+    state.lineEls.forEach((node, i) => {
+      node.dataset.idx = String(i);
+      node.classList.add("clickable");
+    });
+    const langs = detectedLangs(parsed);
+    const options = ['<option value="">All translations</option>', '<option value="none">No translations</option>']
+      .concat(langs.filter((tag) => tag !== parsed.meta.lang).map((tag) => (
+        `<option value="${escapeHtml(tag)}">${escapeHtml(languageName(tag) || tag)} only</option>`
+      )));
+    const html = options.join("");
+    if (el.trFilter.dataset.html !== html) {
+      el.trFilter.innerHTML = html;
+      el.trFilter.dataset.html = html;
+    }
+    if (![...el.trFilter.options].some((option) => option.value === state.trFilter)) state.trFilter = "";
+    el.trFilter.value = state.trFilter;
+    el.trFilter.closest("label").hidden = langs.filter((tag) => tag !== parsed.meta.lang).length === 0;
+    const prev = state.activeIdx;
+    state.activeIdx = -1;
+    setActiveLine(prev, { scroll: false });
+    followCaretInPreview();
+  }
+
+  // Until something is timed, the preview walks a new contributor through the three steps
+  // (lyrics, audio, timing) with live status, instead of sitting empty.
+  function renderGuide() {
+    const source = el.area.value;
+    const lines = source.split("\n");
+    const lyricCount = syncCandidates(source).filter((n) => displayText(lines[n - 1]) !== "").length;
+    const hasAudio = audio.hasAudio();
+    const ready = lyricCount > 0 && hasAudio;
+    const step = (n, done, title, detail, actions = "") => `
+      <li class="guide-step${done ? " done" : ""}">
+        <span class="guide-num">${done ? "✓" : n}</span>
+        <div>
+          <strong>${title}</strong>
+          <p>${detail}</p>
+          ${actions ? `<div class="guide-actions">${actions}</div>` : ""}
+        </div>
+      </li>`;
+    el.preview.innerHTML = `
+      <div class="ed-guide">
+        <p class="ed-guide-eyebrow">Get started</p>
+        <h3>Make a timed lyrics file</h3>
+        <ol>
+          ${step(1, lyricCount > 0, "Add the lyrics",
+            lyricCount ? `${lyricCount} ${lyricCount === 1 ? "line" : "lines"} in the editor` : "One line of the song per line, under the headers on the left.",
+            lyricCount ? "" : '<button class="guide-primary" type="button" data-guide="paste">Paste lyrics</button><button type="button" data-guide="type">Type them</button>')}
+          ${step(2, hasAudio, "Load the song",
+            hasAudio ? escapeHtml(state.audioName || "Audio loaded") : "It stays in your browser and is only used to time the lines.",
+            hasAudio ? "" : '<button class="guide-primary" type="button" data-guide="audio">Load audio</button>')}
+          ${step(3, false, "Time the lines",
+            ready ? "Play the song and press Space as each line starts." : "Needs the lyrics and the song first.",
+            `<button class="guide-primary" type="button" data-guide="sync"${ready ? "" : " disabled"}>Tap to time</button>`)}
+        </ol>
+        <p class="ed-guide-note">Already have a timed .lrc or .xlrc file? <button class="guide-link" type="button" data-guide="import">Import it</button> or drop it anywhere here.</p>
+      </div>`;
+  }
+
+  // Click a preview line: jump the audio there and put the caret on its source line.
+  function onPreviewClick(e) {
+    const guide = e.target.closest("[data-guide]");
+    if (guide) {
+      const action = guide.dataset.guide;
+      if (action === "paste") pasteLyrics();
+      else if (action === "type") typeLyrics();
+      else if (action === "audio") el.audioFile.click();
+      else if (action === "sync") toggleSync();
+      else if (action === "import") el.importFile.click();
+      return;
+    }
+    const node = e.target.closest(".rline");
+    if (!node) return;
+    const line = state.parsed.lines[Number(node.dataset.idx)];
+    if (!line) return;
+    if (audio.hasAudio()) audio.seek((line.timestamp + offsetMs()) / 1000);
+    const offset = offsetOfLine(el.area.value, line.line - 1);
+    el.area.setSelectionRange(offset, offset);
+    history.commit(snapshot());
+    revealCaret();
+    updateCurline();
+    followCaretInPreview();
+    if (state.loopOn) updateLoop();
+  }
+
+  // While paused, the preview marks the caret's line so the source and preview stay paired.
+  function followCaretInPreview(force = false) {
+    const line = caretLine();
+    const idx = state.parsed.lines.findIndex((l) => l.line === line || l.translations.some((t) => t.line === line));
+    state.lineEls.forEach((node, i) => node.classList.toggle("caret", i === idx));
+    if (idx >= 0 && (force || !audio.isPlaying())) {
+      state.lineEls[idx]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+
+  function onActivePos(pos) {
+    state.activePos = pos;
+    setActiveLine(state.order[pos]?.idx ?? -1);
+  }
+
+  function setActiveLine(idx, { scroll = idx !== state.activeIdx } = {}) {
     state.activeIdx = idx;
     state.lineEls.forEach((node, i) => {
       node.classList.toggle("active", i === idx);
       node.classList.toggle("near", i === idx - 1 || i === idx + 1);
     });
-    if (idx >= 0 && state.lineEls[idx]) {
+    if (scroll && idx >= 0 && state.lineEls[idx]) {
       state.lineEls[idx].scrollIntoView({ block: "center", behavior: "smooth" });
     }
     // Mirror the playing line onto the source side: accent gutter number + band.
@@ -1018,6 +1520,160 @@ export function createEditor(container, options = {}) {
 
   function positionActiveBand() {
     positionRowBand(el.activeline, state.activeSrcLine);
+  }
+
+  // ─────────────────────────── shortcuts popover ───────────────────────────
+  function toggleKeys(force) {
+    const open = typeof force === "boolean" ? force : el.keysPop.hidden;
+    el.keysPop.hidden = !open;
+    el.keysBtn.setAttribute("aria-expanded", String(open));
+  }
+
+  function shortcutsHtml() {
+    const row = (keys, label) => `<div class="ed-key-row"><span>${keys.map((k) => `<kbd>${k}</kbd>`).join(" ")}</span><span>${label}</span></div>`;
+    return `
+      <div class="ed-keys-group">
+        <h4>While editing</h4>
+        ${row([`${ALT}Enter`], "Stamp the caret's line at the playhead")}
+        ${row([`${ALT}K`], "Play / pause")}
+        ${row([`${ALT}J`, `${ALT}L`], "Back / ahead 2s (add Shift for 0.5s)")}
+        ${row([`${ALT}↑`, `${ALT}↓`], "Nudge the line's time 50ms (Shift: 10ms)")}
+        ${row([`${ALT}R`], "Loop the caret's line")}
+        ${row([`${ALT}N`], "Next empty translation")}
+        ${row([`${ALT}T`], "Tap to time")}
+        ${row([`${MOD}Z`, `${IS_MAC ? "⇧⌘Z" : "Ctrl+Y"}`], "Undo / redo (stamps and drags too)")}
+      </div>
+      <div class="ed-keys-group">
+        <h4>Timeline</h4>
+        ${row(["Scroll"], "Zoom in and out")}
+        ${row(["Shift+Scroll"], "Pan")}
+        ${row(["Drag a marker"], "Retime that line")}
+        ${row(["Double-click"], "Edit that line")}
+      </div>
+      <div class="ed-keys-group">
+        <h4>Tap to time</h4>
+        ${row(["Space"], "Stamp and move to the next line")}
+        ${row(["⌫"], "Undo the last stamp")}
+        ${row(["."], "Mark a gap or the end")}
+      </div>`;
+  }
+
+  // ─────────────────────────── translation helper ───────────────────────────
+  // "Add translation": an empty [>tag] under every lyric line, then straight to the first one.
+  function wireTranslationHelper() {
+    el.trBtn.addEventListener("click", () => toggleTranslationPop());
+    el.trAdd.addEventListener("click", addTranslation);
+    // The dropdown goes first: Enter on a suggestion picks it (and marks the event handled);
+    // Enter with no list open adds the lines.
+    suggests.push(attachSuggest(el.trLang, {
+      openOnFocus: true,
+      getItems: (input) => {
+        const have = requiredLanguages();
+        return suggestLanguages(input.value.trim(), { exclude: have }).map(languageItem);
+      },
+      onPick: (item, input) => {
+        input.value = item.tag;
+        renderTranslationHint();
+      }
+    }));
+    el.trLang.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.defaultPrevented) {
+        e.preventDefault();
+        addTranslation();
+      } else if (e.key === "Escape" && !e.defaultPrevented) {
+        toggleTranslationPop(false);
+      }
+    });
+    el.trLang.addEventListener("input", renderTranslationHint);
+  }
+
+  function toggleTranslationPop(force) {
+    const open = typeof force === "boolean" ? force : el.trPop.hidden;
+    el.trPop.hidden = !open;
+    el.trBtn.setAttribute("aria-expanded", String(open));
+    if (open) {
+      el.trLang.value = "";
+      renderTranslationHint();
+      el.trLang.focus();
+    }
+  }
+
+  function renderTranslationHint() {
+    const tag = el.trLang.value.trim();
+    const name = languageName(tag);
+    el.trHint.classList.toggle("bad", Boolean(tag) && !name);
+    el.trHint.textContent = !tag
+      ? "Adds an empty translation line under every lyric line that doesn't have one yet."
+      : name
+        ? `Adds an empty [>${canonicalTag(tag)}] (${name}) line under every lyric line that doesn't have one yet.`
+        : `"${tag}" is not a language code. Try a name like "English" or a code like en.`;
+  }
+
+  function addTranslation() {
+    const tag = el.trLang.value.trim();
+    if (!isValidLanguageTag(tag) || !languageName(tag)) {
+      renderTranslationHint();
+      el.trLang.focus();
+      return;
+    }
+    const code = canonicalTag(tag);
+    let text = addTranslationLane(el.area.value, code);
+    text = syncLangsHeader(text, parseXLRC(ensureTrailingNewline(text)));
+    toggleTranslationPop(false);
+    if (text === el.area.value) return;
+    const first = nextEmptyTranslation(text, 0);
+    const caret = first ? offsetOfLine(text, first - 1) + text.split("\n")[first - 1].length : el.area.selectionStart;
+    applyEdit(text, { kind: "lane", selection: { start: caret, end: caret } });
+    el.area.focus({ preventScroll: true });
+    revealCaret();
+  }
+
+  function goToNextEmptyTranslation() {
+    const text = el.area.value;
+    const line = nextEmptyTranslation(text, caretLine());
+    if (!line) return;
+    const caret = offsetOfLine(text, line - 1) + text.split("\n")[line - 1].replace(/\r$/u, "").length;
+    el.area.focus({ preventScroll: true });
+    el.area.setSelectionRange(caret, caret);
+    onCaretMove();
+    revealCaret();
+  }
+
+  // ─────────────────────────── drafts ───────────────────────────
+  // Edits save to this browser as you go; reopening the track offers them back.
+  function offerEditDraft() {
+    if (mode !== "edit") return;
+    const draft = loadTextDraft(state.draftKey);
+    if (!draft || draft.text === el.area.value) return;
+    const changed = state.original !== null && draft.base && draft.base !== fingerprint(state.original);
+    showBanner(`
+      <span>You have unsaved changes to this track from ${escapeHtml(timeAgo(draft.savedAt))}.${changed ? " The published version has changed since." : ""}</span>
+      <button class="issue-fix primary" type="button" data-banner="restore">Restore them</button>
+      <button class="issue-fix" type="button" data-banner="discard">Discard</button>`);
+    el.banner.dataset.text = draft.text;
+  }
+
+  function showBanner(html) {
+    el.banner.innerHTML = html;
+    el.banner.hidden = false;
+  }
+
+  function onBannerClick(e) {
+    const button = e.target.closest("[data-banner]");
+    if (!button) return;
+    const action = button.dataset.banner;
+    if (action === "restore") applyEdit(el.banner.dataset.text, { kind: "import", selection: { start: 0, end: 0 } });
+    else if (action === "discard") clearTextDraft(state.draftKey);
+    else if (action === "use-embedded" && state.embedded) useLyrics(state.embedded.text);
+    state.embedded = null;
+    el.banner.hidden = true;
+    el.banner.innerHTML = "";
+    delete el.banner.dataset.text;
+  }
+
+  function setPressed(button, on) {
+    button.classList.toggle("active", on);
+    button.setAttribute("aria-pressed", String(on));
   }
 
   // ─────────────────────────── artist disambiguation ───────────────────────────
@@ -1121,6 +1777,10 @@ export function createEditor(container, options = {}) {
 
   function setSubmitFeedback(kind, message) {
     state.submitState = { kind, message };
+    if (kind === "done" && mode === "edit") {
+      clearTimeout(state.draftTimer);
+      clearTextDraft(state.draftKey);
+    }
     el.submitBtn.disabled = kind === "busy" || !state.output?.valid;
     renderStatus(state.output, false);
     // Mirror submit lifecycle into a prominent toast (the statusbar is easy to miss).
@@ -1130,7 +1790,7 @@ export function createEditor(container, options = {}) {
     else hideToast();
   }
 
-  const TOAST_TAGS = { busy: "Submitting…", success: "Submitted", error: "Couldn't submit" };
+  const TOAST_TAGS = { busy: "Submitting…", success: "Submitted", error: "Couldn't submit", info: "Note" };
   function showToast(kind, html, dismissable) {
     el.toast.className = `ed-toast show ${kind}`;
     el.toast.innerHTML = `
@@ -1172,23 +1832,26 @@ export function createEditor(container, options = {}) {
   }
 
   function persist() {
-    if (mode !== "new") return;
-    try {
-      localStorage.setItem(SUBMISSION_STORAGE_KEY, el.area.value);
-    } catch (_) {}
-  }
-  function loadDraft() {
-    try {
-      const stored = localStorage.getItem(SUBMISSION_STORAGE_KEY);
-      return stored && stored.trim() ? stored : null;
-    } catch (_) {
-      return null;
+    if (mode === "new") {
+      saveTextDraft("new", el.area.value);
+      return;
     }
+    // Edits: debounce, and drop the draft once it matches what's published again.
+    clearTimeout(state.draftTimer);
+    state.draftTimer = setTimeout(() => {
+      const text = el.area.value;
+      if (state.original !== null && text === state.original) clearTextDraft(state.draftKey);
+      else saveTextDraft(state.draftKey, text, state.original !== null ? fingerprint(state.original) : null);
+    }, 400);
   }
 
   function destroy() {
     clearTimeout(resolveTimer);
+    clearTimeout(state.draftTimer);
+    timeline.destroy();
+    sync.destroy();
     document.removeEventListener("pointerdown", onDocPointerDown);
+    document.removeEventListener("keydown", onRootKeydown);
     document.removeEventListener("keydown", onDocKeydown);
     window.removeEventListener("resize", positionNotes);
     for (const suggest of suggests) suggest.destroy();
@@ -1213,6 +1876,14 @@ function template(mode) {
         <input class="visually-hidden" id="edImportFile" type="file" accept=".xlrc,.lrc,.txt,text/plain">
         <button class="submit-tool-button" id="edAudioBtn" type="button">${ICON_AUDIO} Load audio</button>
         <input class="visually-hidden" id="edAudioFile" type="file" accept="audio/*,.mp3,.flac,.wav,.m4a,.ogg">
+        <div class="ed-tr-wrap">
+          <button class="submit-tool-button" id="edTrBtn" type="button" aria-expanded="false" aria-controls="edTrPop">${ICON_TRANSLATE} Add translation</button>
+          <div class="ed-tr-pop" id="edTrPop" role="dialog" aria-label="Add a translation" hidden>
+            <label><span>Language</span><input id="edTrLang" type="text" placeholder="English, en, romaji…" autocapitalize="off" spellcheck="false"></label>
+            <p class="ed-tr-hint" id="edTrHint"></p>
+            <button class="issue-fix primary" id="edTrAdd" type="button">Add lines</button>
+          </div>
+        </div>
       </div>
       <div class="submit-toolbar-spacer"></div>
       <div class="submit-toolbar-group">
@@ -1235,7 +1906,10 @@ function template(mode) {
     </section>
 
     <div class="ed-disambig" id="edDisambig"></div>
-    <div class="ed-notices" id="edNotices" aria-live="polite"></div>
+    <div class="ed-notices-wrap">
+      <div class="ed-banner" id="edBanner" hidden></div>
+      <div class="ed-notices" id="edNotices" aria-live="polite"></div>
+    </div>
 
     <div class="submit-main">
       <section class="submit-source-pane" aria-label="XLRC source editor">
@@ -1249,23 +1923,42 @@ function template(mode) {
         </div>
       </section>
       <div class="submit-divider" aria-hidden="true"></div>
-      <section class="submit-preview-pane" id="edPreview" aria-live="polite"></section>
+      <div class="ed-preview-wrap">
+        <section class="submit-preview-pane" id="edPreview" aria-live="polite"></section>
+        <label class="ed-tr-filter" hidden><span class="visually-hidden">Translations in preview</span><select id="edTrFilter"></select></label>
+        <div class="sync-mode" id="edSync" hidden></div>
+      </div>
     </div>
 
     <div class="ed-transport disabled" id="edTransport">
-      <button class="play-btn" id="edPlay" aria-label="Play / pause">${ICON_PLAY}${ICON_PAUSE}</button>
-      <div class="scrub-wrap"><div class="scrub" id="edScrub">
-        <canvas class="wave" id="edWave"></canvas>
-        <div class="mk-rail" id="edMarkers"></div>
-        <div class="playhead" id="edPlayhead"></div>
-        <div class="scrub-tip" id="edScrubTip"></div>
-      </div></div>
-      <div class="time" id="edTime">00:00.00 / 00:00.00</div>
-      <label class="ed-speed" title="Playback speed (slow down to time lyrics)">
-        <input type="range" id="edSpeed" min="0.1" max="1" step="0.05" value="1" aria-label="Playback speed">
-        <span id="edSpeedVal">1x</span>
-      </label>
-      <button class="ed-stamp" id="edStamp" type="button" disabled title="Set [mm:ss.xx] on the current line at the playhead (Alt+Enter)">Stamp ⏎</button>
+      <div class="ed-transport-row">
+        <button class="play-btn" id="edPlay" type="button" aria-label="Play / pause">${ICON_PLAY}${ICON_PAUSE}</button>
+        <div class="time" id="edTime">00:00.00 / 00:00.00</div>
+        <div class="ed-overview" id="edOverview"></div>
+        <div class="ed-speed" title="Playback speed (slow down to time fast lines)">
+          <input type="range" id="edSpeed" min="0.1" max="1" step="0.05" value="1" aria-label="Playback speed">
+          <span id="edSpeedVal">1x</span>
+          <span class="ed-speed-presets" id="edSpeedPresets">
+            <button type="button" data-speed="0.5">0.5</button><button type="button" data-speed="0.75">0.75</button><button type="button" data-speed="1" class="active">1</button>
+          </span>
+        </div>
+        <div class="ed-zoom" role="group" aria-label="Timeline zoom">
+          <button type="button" id="edZoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+          <button type="button" id="edZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+          <button type="button" id="edZoomFit" title="Show the whole song">Fit</button>
+        </div>
+        <button class="ed-tool" id="edLoop" type="button" aria-pressed="false" title="Loop the caret's line (${ALT}R)">Loop line</button>
+        <button class="ed-tool" id="edSyncBtn" type="button" aria-pressed="false" title="Press a key as each line starts (${ALT}T)">Tap to time</button>
+        <button class="ed-stamp" id="edStamp" type="button" disabled title="Set the caret's line to the playhead time (${ALT}Enter)">Stamp ⏎</button>
+        <button class="ed-tool icon" id="edKeysBtn" type="button" aria-expanded="false" aria-controls="edKeysPop" title="Keyboard shortcuts">?</button>
+        <div class="ed-keys-pop" id="edKeysPop" role="dialog" aria-label="Keyboard shortcuts" hidden></div>
+      </div>
+      <div class="ed-lane-host" id="edLane"></div>
+      <div class="ed-timeline-empty">
+        <span>Load the song's audio to see the waveform, time lines by ear, and drag them into place.</span>
+        <button class="issue-fix primary" id="edTlLoad" type="button">Load audio</button>
+        <button class="issue-fix" id="edTlReload" type="button" hidden></button>
+      </div>
     </div>
 
     <footer class="submit-statusbar">
@@ -1306,6 +1999,16 @@ function offsetOfLine(text, lineIndex) {
     }
   }
   return text.length;
+}
+
+function timeAgo(ms) {
+  if (!ms) return "earlier";
+  const minutes = Math.round((Date.now() - ms) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return new Date(ms).toLocaleDateString();
 }
 
 function issueText(issue) {

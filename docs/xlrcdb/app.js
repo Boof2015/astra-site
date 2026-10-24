@@ -300,7 +300,7 @@ function mountNewEditor() {
   if (ui.editor) ui.editor.destroy();
   const initial = pendingEditorInitial || {};
   pendingEditorInitial = null;
-  ui.editor = createEditor(el.detailPane, {
+  ui.editor = mountEditor({
     mode: "new",
     initial,
     onSubmit: handleTrackSubmit,
@@ -318,7 +318,7 @@ async function mountEditEditor(artistId, trackId) {
     const initial = pendingEditorInitial;
     pendingEditorInitial = null;
     if (ui.editor) ui.editor.destroy();
-    ui.editor = createEditor(el.detailPane, { mode: "edit", initial, onSubmit: handleTrackSubmit });
+    ui.editor = mountEditor({ mode: "edit", initial, onSubmit: handleTrackSubmit });
     flushFlash();
     return;
   }
@@ -330,14 +330,38 @@ async function mountEditEditor(artistId, trackId) {
     if (!track) throw new Error("The track is not listed for this artist.");
     const source = await getTrackText(track.path);
     if (ui.editor) ui.editor.destroy();
-    ui.editor = createEditor(el.detailPane, {
+    ui.editor = mountEditor({
       mode: "edit",
-      initial: { source, trackPath: track.path, trackId: track.id, artistId: artist.id },
+      initial: { source, original: source, trackPath: track.path, trackId: track.id, artistId: artist.id },
       onSubmit: handleTrackSubmit
     });
     flushFlash();
   } catch (error) {
     setDetail(stateBlock("Unavailable", "Track unavailable", error.message, "error-state"));
+  }
+}
+
+// A throw while mounting usually means the browser mixed cached old modules with new ones
+// after an update (see the recovery script in index.html): refresh them and reload once.
+// Anything that survives that is shown, not swallowed into a blank editor.
+function mountEditor(options) {
+  try {
+    const editor = createEditor(el.detailPane, options);
+    window.xlrcdbStarted?.();
+    return editor;
+  } catch (error) {
+    console.error(error);
+    if (window.xlrcdbRecover?.()) {
+      setDetail(stateBlock("Updating", "Loading the latest editor", "Refreshing files your browser had cached from an older version."));
+    } else {
+      setDetail(stateBlock(
+        "Editor error",
+        "The editor couldn't start",
+        `${error.message || error}. Try a hard refresh (Cmd+Shift+R, or Ctrl+Shift+R on Windows and Linux).`,
+        "error-state"
+      ));
+    }
+    return null;
   }
 }
 

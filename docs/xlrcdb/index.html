@@ -17,6 +17,36 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<script>
+  // After an update a browser can mix cached old files with new ones (a module missing an
+  // export, or the editor calling an old helper), and the app dies on startup. Re-download
+  // every cached script and stylesheet once, then reload. A second failure in the same
+  // session shows the error instead of looping.
+  (function () {
+    var KEY = "xlrcdb-recovery";
+    function alreadyTried() {
+      try { return sessionStorage.getItem(KEY) === "1"; } catch (e) { return true; }
+    }
+    window.xlrcdbRecover = function () {
+      if (alreadyTried()) return false;
+      try { sessionStorage.setItem(KEY, "1"); } catch (e) {}
+      var urls = performance.getEntriesByType("resource")
+        .map(function (entry) { return entry.name; })
+        .filter(function (url) { return url.indexOf(location.origin) === 0 && /\.(js|css)([?#]|$)/.test(url); });
+      Promise.all(urls.map(function (url) { return fetch(url, { cache: "reload" }).catch(function () {}); }))
+        .then(function () { location.reload(); });
+      return true;
+    };
+    window.xlrcdbStarted = function () {
+      try { sessionStorage.removeItem(KEY); } catch (e) {}
+    };
+    window.addEventListener("error", function (event) {
+      if (event.error instanceof SyntaxError || /does not provide an export/i.test(event.message || "")) {
+        window.xlrcdbRecover();
+      }
+    });
+  })();
+</script>
 <script src="app.js" type="module"></script>
 </head>
 <body>

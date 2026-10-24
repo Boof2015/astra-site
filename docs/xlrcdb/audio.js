@@ -1,28 +1,28 @@
-// Audio engine for the editor: waveform, playback, scrubber, line markers,
-// loudness normalization, and embedded-lyric extraction. Ported from the
-// standalone editor and wrapped in a factory so the editor can mount/destroy it.
+// Audio engine for the editor: playback, decoding, loudness normalization, waveform peaks,
+// looping, active-line tracking and embedded-lyric extraction. Drawing lives in timeline.js.
 //
-// els:   { audio, scrub, wave, markers, playhead, scrubTip, playBtn, time }
-// hooks: { getLines(): line[], getOffset(): ms, onActiveLine(idx), onDuration(sec), onEmbeddedLyrics(text, name) }
+// els:   { audio, playBtn, time }
+// hooks: { getOrder(): [{ timestamp }] sorted by time, getOffset(): ms,
+//          onActiveLine(orderIndex), onTick(seconds), onDuration(sec), onPeaks(peaks),
+//          onEmbeddedLyrics(text, name) }
 
 import { formatPlaybackTime } from "./render.js";
 
-export function createAudioEngine(els, hooks) {
-  const { audio, scrub, wave, markers, playhead, scrubTip, playBtn, time } = els;
-  const waveCtx = wave.getContext("2d");
-  const prefersReduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Waveform resolution kept after decoding: enough to zoom down to ~10ms per pixel.
+const PEAKS_PER_SECOND = 200;
 
-  let peaks = null;
+export function createAudioEngine(els, hooks) {
+  const { audio, playBtn, time } = els;
+
   let audioCtx = null;
   let mediaSrc = null;
   let gainNode = null;
   let normGain = 1;
   let rate = 1;
   let audioURL = null;
-  let activeIdx = -1;
+  let activePos = -1;
   let rafId = 0;
-  let scrubbing = false;
-  const waveColors = { accent: "#38bdf8", muted: "#404040" };
+  let loop = null; // { start, end } in seconds
 
   function ensureGraph() {
     if (audioCtx) return;
@@ -38,100 +38,71 @@ export function createAudioEngine(els, hooks) {
     if (gainNode) gainNode.gain.value = normGain;
   }
 
-  function refreshWaveColors() {
-    const cs = getComputedStyle(document.documentElement);
-    waveColors.accent = cs.getPropertyValue("--accent").trim() || waveColors.accent;
-    waveColors.muted = cs.getPropertyValue("--wave-muted").trim() || waveColors.muted;
-  }
-  function resizeWave() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const r = wave.getBoundingClientRect();
-    wave.width = Math.max(1, Math.round(r.width * dpr));
-    wave.height = Math.max(1, Math.round(r.height * dpr));
-  }
-  function drawWave() {
-    const w = wave.width;
-    const h = wave.height;
-    waveCtx.clearRect(0, 0, w, h);
-    const d = audio.duration || 0;
-    const playX = d ? (audio.currentTime / d) * w : 0;
-    if (!peaks) {
-      waveCtx.fillStyle = waveColors.muted;
-      waveCtx.fillRect(0, h / 2 - 1, w, 2);
-      return;
-    }
-    const n = peaks.length;
-    const step = w / n;
-    const bw = Math.max(1, step * 0.6);
-    for (let i = 0; i < n; i++) {
-      const cx = i * step + step / 2;
-      const barH = Math.max(2, peaks[i] * h * 0.92);
-      waveCtx.fillStyle = cx <= playX ? waveColors.accent : waveColors.muted;
-      waveCtx.fillRect(cx - bw / 2, (h - barH) / 2, bw, barH);
-    }
-  }
-  async function buildWaveform(buf) {
-    peaks = null;
+  // min/max per bucket (channels mixed down) plus a loudness-normalization gain.
+  async function decode(buf) {
     normGain = 1;
     applyGain();
-    resizeWave();
-    drawWave();
     let tmpCtx = null;
     try {
       ensureGraph();
       const ctx = audioCtx || (tmpCtx = new (window.AudioContext || window.webkitAudioContext)());
       const audioBuf = await ctx.decodeAudioData(buf);
-      const ch = audioBuf.getChannelData(0);
-      const N = 360;
-      const block = Math.max(1, Math.floor(ch.length / N));
-      const p = new Float32Array(N);
-      let max = 0;
-      let gPeak = 0;
-      let gSum = 0;
-      let gCount = 0;
-      for (let i = 0; i < N; i++) {
-        let sum = 0;
-        const start = i * block;
-        for (let j = 0; j < block; j++) {
-          const v = ch[start + j] || 0;
-          const a = v < 0 ? -v : v;
-          if (a > gPeak) gPeak = a;
-          sum += v * v;
+      const channels = [];
+      for (let c = 0; c < Math.min(2, audioBuf.numberOfChannels); c++) channels.push(audioBuf.getChannelData(c));
+      const length = channels[0].length;
+      const bucket = Math.max(1, Math.round(audioBuf.sampleRate / PEAKS_PER_SECOND));
+      const count = Math.ceil(length / bucket);
+      const min = new Float32Array(count);
+      const max = new Float32Array(count);
+      let peak = 0;
+      let sumSquares = 0;
+      for (let b = 0; b < count; b++) {
+        let lo = 0;
+        let hi = 0;
+        const end = Math.min(length, (b + 1) * bucket);
+        for (let i = b * bucket; i < end; i++) {
+          const v = channels.length === 2 ? (channels[0][i] + channels[1][i]) * 0.5 : channels[0][i];
+          if (v < lo) lo = v;
+          if (v > hi) hi = v;
+          sumSquares += v * v;
         }
-        const rms = Math.sqrt(sum / block);
-        p[i] = rms;
-        if (rms > max) max = rms;
-        gSum += sum;
-        gCount += block;
+        min[b] = lo;
+        max[b] = hi;
+        if (-lo > peak) peak = -lo;
+        if (hi > peak) peak = hi;
       }
-      if (max > 0) for (let i = 0; i < N; i++) p[i] /= max;
-      peaks = p;
-      const measuredRMS = gCount ? Math.sqrt(gSum / gCount) : 0;
-      if (measuredRMS > 0) {
+      if (peak > 0) {
+        for (let b = 0; b < count; b++) {
+          min[b] /= peak;
+          max[b] /= peak;
+        }
+      }
+      const rms = Math.sqrt(sumSquares / length);
+      if (rms > 0) {
         const TARGET_RMS = 0.1;
         const CEILING = 0.97;
-        let g = TARGET_RMS / measuredRMS;
-        if (gPeak > 0) g = Math.min(g, CEILING / gPeak);
+        let g = TARGET_RMS / rms;
+        if (peak > 0) g = Math.min(g, CEILING / peak);
         normGain = Math.max(0.1, Math.min(g, 4));
       }
       applyGain();
+      hooks.onPeaks?.({ min, max, perSecond: audioBuf.sampleRate / bucket, duration: audioBuf.duration });
     } catch (e) {
-      peaks = null;
+      hooks.onPeaks?.(null);
     } finally {
       if (tmpCtx) tmpCtx.close();
     }
-    resizeWave();
-    drawWave();
   }
 
-  function resolveActive(ms) {
-    const lines = hooks.getLines();
+  // Binary search over the playback-ordered lines for the one playing at ms.
+  function positionAt(ms) {
+    const order = hooks.getOrder();
     let lo = 0;
-    let hi = lines.length - 1;
+    let hi = order.length - 1;
     let res = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
-      if (lines[mid].timestamp <= ms) {
+      if (order[mid].timestamp <= ms) {
         res = mid;
         lo = mid + 1;
       } else {
@@ -141,84 +112,25 @@ export function createAudioEngine(els, hooks) {
     return res;
   }
   function syncActive(force) {
-    const lines = hooks.getLines();
-    if (!lines.length) {
-      if (activeIdx !== -1) {
-        activeIdx = -1;
-        hooks.onActiveLine(-1);
-      }
-      return;
-    }
-    const ms = audio.currentTime * 1000 - (hooks.getOffset() || 0);
-    const idx = resolveActive(ms);
-    if (idx === activeIdx && !force) return;
-    activeIdx = idx;
-    updateTickActive(idx);
-    hooks.onActiveLine(idx);
+    const pos = positionAt(audio.currentTime * 1000 - (hooks.getOffset() || 0));
+    if (pos === activePos && !force) return;
+    activePos = pos;
+    hooks.onActiveLine(pos);
   }
 
-  function updateScrub() {
-    const d = audio.duration || 0;
-    const cur = audio.currentTime || 0;
-    playhead.style.left = `${d ? (cur / d) * 100 : 0}%`;
-    time.textContent = `${formatPlaybackTime(cur)} / ${formatPlaybackTime(d)}`;
-    drawWave();
-  }
-  function renderMarkers() {
-    markers.textContent = "";
-    const d = audio.duration;
-    const lines = hooks.getLines();
-    if (!d || !lines.length) return;
-    const dMs = d * 1000;
-    for (let i = 0; i < lines.length; i++) {
-      const t = lines[i].timestamp;
-      if (t > dMs) continue;
-      const mk = document.createElement("div");
-      mk.className = "mk";
-      mk.style.left = `${(t / dMs) * 100}%`;
-      mk.dataset.idx = i;
-      markers.appendChild(mk);
-    }
-    updateTickActive(activeIdx);
-  }
-  function updateTickActive(idx) {
-    for (const mk of markers.children) {
-      const i = Number(mk.dataset.idx);
-      mk.classList.toggle("active", i === idx);
-      mk.classList.toggle("passed", i < idx);
-    }
-  }
-  function seekToClientX(clientX) {
-    const r = scrub.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-    if (audio.duration) audio.currentTime = ratio * audio.duration;
-    updateScrub();
-    syncActive(true);
-  }
-  function showTip(clientX) {
-    const d = audio.duration || 0;
-    const lines = hooks.getLines();
-    if (!d || !lines.length) {
-      scrubTip.style.display = "none";
-      return;
-    }
-    const r = scrub.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-    const idx = resolveActive(ratio * d * 1000);
-    const line = idx >= 0 ? lines[idx] : lines[0];
-    const label = !line || line.isEmpty ? "instrumental" : line.text;
-    scrubTip.textContent = `${formatPlaybackTime((line ? line.timestamp : 0) / 1000)}  ·  ${label.length > 40 ? `${label.slice(0, 39)}…` : label}`;
-    scrubTip.style.left = `${ratio * 100}%`;
-    scrubTip.style.display = "block";
+  function updateTime() {
+    time.textContent = `${formatPlaybackTime(audio.currentTime || 0)} / ${formatPlaybackTime(audio.duration || 0)}`;
   }
 
-  function loop() {
-    updateScrub();
+  function frame() {
+    if (loop && audio.currentTime >= loop.end) audio.currentTime = loop.start;
+    updateTime();
     syncActive(false);
-    rafId = requestAnimationFrame(loop);
+    hooks.onTick?.(audio.currentTime);
+    rafId = requestAnimationFrame(frame);
   }
   function startLoop() {
-    if (!rafId) rafId = requestAnimationFrame(loop);
+    if (!rafId) rafId = requestAnimationFrame(frame);
   }
   function stopLoop() {
     cancelAnimationFrame(rafId);
@@ -226,11 +138,7 @@ export function createAudioEngine(els, hooks) {
   }
 
   // ── events ──
-  const onPlayClick = () => {
-    if (!audio.src) return;
-    if (audio.paused) audio.play();
-    else audio.pause();
-  };
+  const onPlayClick = () => toggle();
   const onPlay = () => {
     if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
     playBtn.classList.add("playing");
@@ -239,7 +147,8 @@ export function createAudioEngine(els, hooks) {
   const onPause = () => {
     playBtn.classList.remove("playing");
     stopLoop();
-    updateScrub();
+    updateTime();
+    hooks.onTick?.(audio.currentTime);
   };
   const onEnded = () => {
     playBtn.classList.remove("playing");
@@ -247,37 +156,13 @@ export function createAudioEngine(els, hooks) {
   };
   const onLoadedMeta = () => {
     audio.playbackRate = rate; // a new source resets the rate; re-apply it
-    resizeWave();
-    renderMarkers();
-    updateScrub();
+    updateTime();
     if (isFinite(audio.duration)) hooks.onDuration(audio.duration);
   };
   const onSeeked = () => {
-    updateScrub();
+    updateTime();
     syncActive(true);
-  };
-  const onPointerDown = (e) => {
-    if (!audio.src) return;
-    scrubbing = true;
-    scrub.setPointerCapture(e.pointerId);
-    seekToClientX(e.clientX);
-  };
-  const onPointerMove = (e) => {
-    if (scrubbing) seekToClientX(e.clientX);
-    else showTip(e.clientX);
-  };
-  const onPointerUp = (e) => {
-    scrubbing = false;
-    try {
-      scrub.releasePointerCapture(e.pointerId);
-    } catch (_) {}
-  };
-  const onPointerLeave = () => {
-    scrubTip.style.display = "none";
-  };
-  const onResize = () => {
-    resizeWave();
-    drawWave();
+    hooks.onTick?.(audio.currentTime);
   };
 
   playBtn.addEventListener("click", onPlayClick);
@@ -286,20 +171,12 @@ export function createAudioEngine(els, hooks) {
   audio.addEventListener("ended", onEnded);
   audio.addEventListener("loadedmetadata", onLoadedMeta);
   audio.addEventListener("seeked", onSeeked);
-  scrub.addEventListener("pointerdown", onPointerDown);
-  scrub.addEventListener("pointermove", onPointerMove);
-  scrub.addEventListener("pointerup", onPointerUp);
-  scrub.addEventListener("pointerleave", onPointerLeave);
-  window.addEventListener("resize", onResize);
-
-  refreshWaveColors();
-  resizeWave();
-  drawWave();
 
   async function loadFile(file) {
     if (audioURL) URL.revokeObjectURL(audioURL);
     audioURL = URL.createObjectURL(file);
     audio.src = audioURL;
+    loop = null;
     let buf = null;
     try {
       buf = await file.arrayBuffer();
@@ -307,8 +184,22 @@ export function createAudioEngine(els, hooks) {
       return;
     }
     const lyrics = extractEmbeddedLyrics(buf); // sync, before decodeAudioData detaches the buffer
-    buildWaveform(buf);
+    decode(buf);
     if (lyrics && hooks.onEmbeddedLyrics) hooks.onEmbeddedLyrics(lyrics, file.name);
+  }
+
+  function seek(seconds) {
+    if (!audio.src || !isFinite(audio.duration)) return;
+    audio.currentTime = Math.min(audio.duration, Math.max(0, seconds));
+    updateTime();
+    syncActive(true);
+    hooks.onTick?.(audio.currentTime);
+  }
+
+  function toggle() {
+    if (!audio.src) return;
+    if (audio.paused) audio.play();
+    else audio.pause();
   }
 
   function destroy() {
@@ -319,11 +210,6 @@ export function createAudioEngine(els, hooks) {
     audio.removeEventListener("ended", onEnded);
     audio.removeEventListener("loadedmetadata", onLoadedMeta);
     audio.removeEventListener("seeked", onSeeked);
-    scrub.removeEventListener("pointerdown", onPointerDown);
-    scrub.removeEventListener("pointermove", onPointerMove);
-    scrub.removeEventListener("pointerup", onPointerUp);
-    scrub.removeEventListener("pointerleave", onPointerLeave);
-    window.removeEventListener("resize", onResize);
     try {
       audio.pause();
     } catch (_) {}
@@ -334,15 +220,25 @@ export function createAudioEngine(els, hooks) {
   return {
     loadFile,
     destroy,
+    seek,
+    toggle,
+    play: () => audio.src && audio.play(),
+    pause: () => audio.pause(),
     hasAudio: () => !!audio.src,
-    currentTimeMs: () => audio.currentTime * 1000,
+    isPlaying: () => !audio.paused,
+    currentTime: () => audio.currentTime || 0,
+    currentTimeMs: () => (audio.currentTime || 0) * 1000,
+    duration: () => (isFinite(audio.duration) ? audio.duration : 0),
     setRate: (value) => {
       rate = value > 0 ? value : 1;
       audio.playbackRate = rate;
     },
-    refreshMarkers: renderMarkers,
-    refreshSync: () => syncActive(true),
-    resize: onResize
+    // Loop [start, end) seconds, or clear with null.
+    setLoop: (range) => {
+      loop = range && range.end > range.start ? range : null;
+    },
+    getLoop: () => loop,
+    refreshSync: () => syncActive(true)
   };
 }
 

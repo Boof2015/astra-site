@@ -151,7 +151,7 @@ export function renderLyrics(container, parsed, activeLang = "", { showAll = fal
   if (!parsed.lines.length) {
     const empty = document.createElement("div");
     empty.className = "render-empty";
-    empty.textContent = "No timed lines yet. Add a [mm:ss.xx] line.";
+    empty.textContent = "No timed lines yet. Load the audio and use Tap to time, or add [mm:ss.xx] stamps.";
     container.appendChild(empty);
     return lineEls;
   }
