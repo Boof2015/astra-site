@@ -82,6 +82,10 @@ const ICON_PAUSE = '<svg class="i-pause" viewBox="0 0 16 16" fill="currentColor"
 
 export function createEditor(container, options = {}) {
   const mode = options.mode === "edit" ? "edit" : "new";
+  // Offline: the same editor for making files for yourself (where /xlrc/editor/ now points).
+  // No submitting and no database lookups; only the XLRC format itself is enforced, and
+  // xlrcdb's extra rules (required headers, real language codes) are suggestions.
+  const offline = options.offline === true;
   const initial = options.initial || {};
 
   const state = {
@@ -103,7 +107,7 @@ export function createEditor(container, options = {}) {
     dragSeq: 0,
     audioName: "",
     embedded: null, // { text, name } lyrics found in the loaded audio file's tags
-    draftKey: draftKey(mode, initial.trackId),
+    draftKey: offline ? "offline" : draftKey(mode, initial.trackId),
     draftTimer: 0,
     // The published file this edit started from (null when it came from "Submit as an edit").
     original: typeof initial.original === "string" ? initial.original : null,
@@ -119,7 +123,7 @@ export function createEditor(container, options = {}) {
     submitState: { kind: "idle", message: "" }
   };
 
-  container.innerHTML = template(mode);
+  container.innerHTML = template(mode, offline);
   const root = container.querySelector(".submit-editor-app");
 
   const el = {
@@ -172,6 +176,7 @@ export function createEditor(container, options = {}) {
     trHint: root.querySelector("#edTrHint"),
     trAdd: root.querySelector("#edTrAdd"),
     banner: root.querySelector("#edBanner"),
+    toSubmit: root.querySelector("#edToSubmit"),
     review: root.querySelector("#edReview"),
     audio: root.querySelector("#edAudio"),
     statusText: root.querySelector("#edStatusText"),
@@ -243,7 +248,7 @@ export function createEditor(container, options = {}) {
   } else if (typeof initial.source === "string") {
     state.source = initial.source;
   } else {
-    const draft = loadTextDraft("new")?.text;
+    const draft = loadTextDraft(offline ? "offline" : "new")?.text;
     if (initial.artist) {
       // "Create new track" arriving from search/artist: prefill [ar:] on a fresh body.
       state.source = patchHeader(DEFAULT_SOURCE, "ar", initial.artist);
@@ -288,8 +293,9 @@ export function createEditor(container, options = {}) {
     }
 
     wireLanguageFields();
-    wireArtistSuggest();
+    if (!offline) wireArtistSuggest();
     el.disambig.addEventListener("click", onDisambigClick);
+    el.toSubmit?.addEventListener("click", () => options.onOpenInSubmit?.(ensureTrailingNewline(el.area.value)));
 
     el.statusPill.addEventListener("click", () => togglePop());
     for (const host of [el.problemsPop, el.notices, el.notes]) host.addEventListener("click", onIssueClick);
@@ -827,8 +833,9 @@ export function createEditor(container, options = {}) {
 
   function renderStatus(output, checking = false) {
     const sub = state.submitState;
-    el.copyBtn.disabled = !output.valid;
-    el.exportBtn.disabled = !output.valid;
+    // Offline files are for yourself: never block getting them out.
+    el.copyBtn.disabled = !offline && !output.valid;
+    el.exportBtn.disabled = !offline && !output.valid;
     el.submitBtn.disabled = !output.valid || sub.kind === "busy";
     const errorCount = output.errors.length;
     el.submitBtn.title = errorCount ? `Fix ${errorCount} ${errorCount === 1 ? "error" : "errors"} first` : "";
@@ -857,7 +864,7 @@ export function createEditor(container, options = {}) {
     if (sub.kind === "idle" && sub.message) {
       el.statusText.textContent = sub.message;
     } else if (output.valid) {
-      el.statusText.textContent = mode === "edit" ? "Ready to open edit PR" : "Ready to submit";
+      el.statusText.textContent = offline ? "Ready to export" : mode === "edit" ? "Ready to open edit PR" : "Ready to submit";
     } else {
       el.statusText.textContent = output.errors[0] ? issueText(output.errors[0]) : "Needs changes";
     }
@@ -865,6 +872,7 @@ export function createEditor(container, options = {}) {
 
   async function runDuplicateCheck(output) {
     const token = ++state.token;
+    if (offline) return;
     if (!output.valid || output.lengthSeconds === undefined) return;
     renderStatus(output, true);
     const dup = await findDuplicate(output).catch(() => null);
@@ -965,7 +973,7 @@ export function createEditor(container, options = {}) {
     const hasAudio = Number.isFinite(state.audioSeconds);
 
     const requireHeader = (value, key, message, extra = {}) => {
-      if (!value) add("error", { code: "missing-header", message, line: findHeaderLine(text, key), field: key, ...extra });
+      if (!value && !offline) add("error", { code: "missing-header", message, line: findHeaderLine(text, key), field: key, ...extra });
     };
     requireHeader(artist, "ar", "Missing non-empty [ar:] header");
     requireHeader(title, "ti", "Missing non-empty [ti:] header");
@@ -973,7 +981,7 @@ export function createEditor(container, options = {}) {
       requireHeader(length, "length", "Missing non-empty [length:] header",
         hasAudio ? { fix: { kind: "set-length", value: formatDuration(state.audioSeconds) } } : {});
     } else if (lengthSeconds === undefined) {
-      add("error", {
+      add(offline ? "warning" : "error", {
         code: "length-format",
         message: "Length must use mm:ss with seconds below 60",
         line: findHeaderLine(text, "length"),
@@ -982,7 +990,11 @@ export function createEditor(container, options = {}) {
       });
     }
 
-    for (const error of validateLanguageMetadata(parsed, text)) add("error", error);
+    for (const error of validateLanguageMetadata(parsed, text)) {
+      // Offline, language headers are optional and a bad code is only a suggestion.
+      if (offline && (error.code === "missing-lang" || error.code === "missing-langs")) continue;
+      add(offline ? "warning" : "error", error);
+    }
 
     // CI only creates artists for new submissions; an edited track's [ar:] has to resolve.
     const resolution = state.artistResolution;
@@ -1197,7 +1209,7 @@ export function createEditor(container, options = {}) {
         </div>`;
     }).join("");
     el.problemsPop.innerHTML = `
-      <div class="ed-pop-head">Errors block submitting. Warnings are suggestions.</div>
+      <div class="ed-pop-head">${offline ? "Errors are lines a player would skip. Warnings are suggestions." : "Errors block submitting. Warnings are suggestions."}</div>
       ${rows || '<div class="ed-pop-empty">No problems. Ready to submit.</div>'}`;
   }
 
@@ -1721,6 +1733,7 @@ export function createEditor(container, options = {}) {
   }
 
   async function resolveArtistNow() {
+    if (offline) return;
     const name = (el.artist.value || "").trim();
     const token = ++state.resolveToken;
     if (!name) {
@@ -1887,6 +1900,10 @@ export function createEditor(container, options = {}) {
   }
 
   function persist() {
+    if (offline) {
+      saveTextDraft("offline", el.area.value);
+      return;
+    }
     if (mode === "new") {
       saveTextDraft("new", el.area.value);
       return;
@@ -1917,14 +1934,14 @@ export function createEditor(container, options = {}) {
 }
 
 // ─────────────────────────── pure helpers ───────────────────────────
-function template(mode) {
+function template(mode, offline = false) {
   const submitLabel = mode === "edit" ? "Open edit PR" : "Submit via PR";
   return `
   <article class="submit-editor-app">
     <header class="submit-toolbar">
       <div class="submit-brand">
         <a class="submit-logo" href="#/">XLRCDB</a>
-        <span>${mode === "edit" ? "Edit" : "New"}</span>
+        <span>${offline ? "Offline" : mode === "edit" ? "Edit" : "New"}</span>
       </div>
       <div class="submit-toolbar-group">
         <button class="submit-tool-button" id="edImport" type="button">${ICON_IMPORT} Import</button>
@@ -1944,8 +1961,9 @@ function template(mode) {
       <div class="submit-toolbar-group">
         <a class="submit-tool-button" href="#/">Browse</a>
         <button class="submit-tool-button" id="edCopy" type="button" disabled>Copy</button>
-        <button class="submit-tool-button" id="edExport" type="button" disabled>Export</button>
-        <button class="submit-tool-button primary" id="edSubmit" type="button" disabled>${submitLabel}</button>
+        <button class="submit-tool-button${offline ? " primary" : ""}" id="edExport" type="button" disabled>Export</button>
+        ${offline ? '<button class="submit-tool-button" id="edToSubmit" type="button" title="Open this file in the xlrcdb submit editor, which checks it against the database rules">Submit to xlrcdb</button>' : ""}
+        <button class="submit-tool-button primary" id="edSubmit" type="button" disabled${offline ? " hidden" : ""}>${submitLabel}</button>
         <a class="submit-tool-button" href="${CONTRIBUTING_URL}" target="_blank" rel="noopener">Guide</a>
       </div>
     </header>

@@ -289,6 +289,7 @@ function parseRoute() {
   const hash = window.location.hash.replace(/^#\/?/u, "");
   const [name = "", a = "", b = ""] = hash.split("/").map(decodeURIComponent);
   if (name === "submit") return { name: "submit" };
+  if (name === "editor") return { name: "editor" };
   if (name === "edit" && a && b) return { name: "edit", artistId: a, trackId: b };
   if (name === "artist-edit" && a) return { name: "artist-edit", artistId: a };
   if (name === "artist" && a) return { name: "artist", artistId: a };
@@ -301,7 +302,7 @@ async function renderRoute() {
   const route = parseRoute();
   // Only the full-screen track editor uses submit-mode; artist-edit is a normal
   // detail view (keeps the nav + search pane + page padding).
-  const editorRoute = route.name === "submit" || route.name === "edit";
+  const editorRoute = route.name === "submit" || route.name === "edit" || route.name === "editor";
   const routeKey = editorRoute ? location.hash : null;
   document.body.classList.toggle("submit-mode", editorRoute);
 
@@ -324,6 +325,7 @@ async function renderRoute() {
   }
 
   if (route.name === "submit") return mountNewEditor();
+  if (route.name === "editor") return mountOfflineEditor();
   if (route.name === "edit") return mountEditEditor(route.artistId, route.trackId);
 
   if (ui.loading) return setDetail(stateBlock("Live source", "Loading XLRCDB", "Fetching the static index from GitHub Pages."));
@@ -357,6 +359,21 @@ function mountNewEditor() {
     }
   });
   flushFlash();
+}
+
+// The standalone editor (/xlrc/editor/ redirects here): no submitting, no database. "Submit to
+// xlrcdb" carries the file over to the submit editor, where the stricter checks apply.
+function mountOfflineEditor() {
+  if (ui.editor) ui.editor.destroy();
+  ui.editor = mountEditor({
+    mode: "new",
+    offline: true,
+    initial: {},
+    onOpenInSubmit: (text) => {
+      pendingEditorInitial = { source: text };
+      location.hash = "#/submit";
+    }
+  });
 }
 
 async function mountEditEditor(artistId, trackId) {

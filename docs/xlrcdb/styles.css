@@ -987,6 +987,9 @@ body.submit-mode {
   padding: 0;
 }
 
+/* Component display rules (inline-flex buttons etc.) must never override [hidden]. */
+[hidden] { display: none !important; }
+
 .visually-hidden {
   position: absolute;
   width: 1px;
