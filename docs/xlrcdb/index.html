@@ -69,42 +69,26 @@
   <aside class="search-pane" aria-label="XLRCDB search">
     <div class="pane-header">
       <div>
-        <p class="eyebrow">Static lyric index</p>
+        <p class="eyebrow">Community synced lyrics</p>
         <h1>XLRCDB</h1>
       </div>
-      <div class="pane-actions">
-        <a class="link-button" href="#/submit">Submit</a>
-        <button class="refresh-button" id="refreshButton" type="button">Refresh</button>
-      </div>
-    </div>
-
-    <div class="source-strip">
-      <span class="status-dot" id="statusDot" aria-hidden="true"></span>
-      <span id="sourceStatus">Connecting to source</span>
     </div>
 
     <div class="auth-strip" id="authStrip" aria-label="GitHub sign-in"></div>
 
-    <form class="search-form" id="searchForm">
-      <label for="artistSearch">Artist</label>
-      <input id="artistSearch" name="artist" type="search" autocomplete="off" placeholder="Artist name or alias">
-
-      <label for="trackSearch">Track</label>
-      <input id="trackSearch" name="track" type="search" autocomplete="off" placeholder="Filter tracks after artist match">
+    <form class="search-box" id="searchForm" role="search">
+      <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="m10.5 10.5 3.5 3.5" stroke-linecap="round"/></svg>
+      <input id="search" type="search" autocomplete="off" spellcheck="false" placeholder="Search artists and songs" aria-label="Search artists and songs" aria-controls="results">
+      <kbd class="search-kbd" aria-hidden="true">/</kbd>
     </form>
 
-    <div class="stats" aria-label="Database summary">
-      <div>
-        <span id="artistCount">0</span>
-        <small>artists</small>
-      </div>
-      <div>
-        <span id="aliasCount">0</span>
-        <small>aliases</small>
-      </div>
-    </div>
-
+    <div class="source-error" id="sourceError" hidden></div>
     <div class="results" id="results" aria-live="polite"></div>
+
+    <footer class="pane-foot">
+      <span id="sourceNote">Connecting…</span>
+      <button class="text-button" id="refreshButton" type="button">Refresh</button>
+    </footer>
   </aside>
 
   <section class="detail-pane" id="detailPane" aria-live="polite">

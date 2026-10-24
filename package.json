@@ -12,7 +12,7 @@
     "test:prism": "node --test docs/prism/*.test.mjs",
     "test:relay": "node --test test/relay.test.mjs",
     "check:signal": "node --check docs/signal/app.js && node --check docs/signal/signal-core.js",
-    "check:xlrcdb": "for f in app audio data drafts editor editor-transforms editor-validation github history language-registry languages render review-sheet suggest sync-mode timeline; do node --check docs/xlrcdb/$f.js || exit 1; done",
+    "check:xlrcdb": "for f in app audio data drafts editor editor-transforms editor-validation github history language-registry languages render review-sheet search suggest sync-mode timeline; do node --check docs/xlrcdb/$f.js || exit 1; done",
     "check:relay": "node --check relay/app.js && node --check relay/transition.js && npm run build:relay && npm run test:relay",
     "check": "npm run check:signal && npm run check:xlrcdb && npm run check:relay && npm test"
   }

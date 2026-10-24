@@ -10,7 +10,7 @@ export const CONTRIBUTING_URL = `${DATA_REPO_URL}/blob/main/CONTRIBUTING.md`;
 const artistCache = new Map();
 const trackTextCache = new Map();
 let aliasesPromise = null;
-let allTracksPromise = null;
+let directoryPromise = null;
 
 const store = {
   aliasesIndex: null,
@@ -29,7 +29,7 @@ export function clearCaches() {
   store.aliasesIndex = null;
   store.aliasEntries = [];
   aliasesPromise = null;
-  allTracksPromise = null;
+  directoryPromise = null;
   artistCache.clear();
   trackTextCache.clear();
 }
@@ -50,25 +50,80 @@ async function aliasesReady() {
   if (!store.aliasesIndex && aliasesPromise) await aliasesPromise.catch(() => {});
 }
 
-// Every track in the database as { artistId, canonicalName, track }, built by fetching each
-// artist's index file. Cached until clearCaches().
-export function getAllTracks() {
-  if (!allTracksPromise) allTracksPromise = buildAllTracks();
-  return allTracksPromise;
+// Every artist and track, for search, browsing and the editor's artist suggestions:
+//   { artists: [{ id, name, latin, aliases, trackCount }],
+//     tracks: [{ artistId, artistName, id, title, length, path, ...details }],
+//     fromCatalog }
+// Read from index/catalog.json in one request when the data repo publishes it (aliases as
+// written, languages, added dates). Otherwise built by fetching each artist's index file,
+// where aliases are the lowercase keys aliases.json stores. Cached until clearCaches().
+export function getDirectory() {
+  if (!directoryPromise) directoryPromise = loadCatalog().catch(() => buildDirectory());
+  return directoryPromise;
 }
 
-async function buildAllTracks() {
+async function loadCatalog() {
+  const catalog = await fetchJson(joinUrl(DATA_SOURCE, "index/catalog.json"));
+  if (catalog?.version !== 1 || !Array.isArray(catalog.artists) || !Array.isArray(catalog.tracks)) {
+    throw new Error("Unsupported catalog");
+  }
+  const names = new Map(catalog.artists.map((artist) => [artist.id, artist.name]));
+  const artists = catalog.artists.map((artist) => ({
+    id: artist.id,
+    name: artist.name,
+    latin: artist.latin || "",
+    aliases: [...(artist.aliases || []), ...(artist.latin ? [artist.latin] : [])],
+    trackCount: artist.tracks ?? 0
+  }));
+  const tracks = catalog.tracks.map((track) => ({
+    artistId: track.artist,
+    artistName: names.get(track.artist) ?? "",
+    id: track.id,
+    title: track.title,
+    length: track.length,
+    path: track.path,
+    lang: track.lang || "",
+    langs: track.langs || [],
+    translations: track.translations || [],
+    lines: track.lines ?? null,
+    furigana: Boolean(track.furigana),
+    words: Boolean(track.words),
+    voices: Boolean(track.voices),
+    added: track.added || null
+  }));
+  artists.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  return { artists, tracks, fromCatalog: true };
+}
+
+async function buildDirectory() {
   await aliasesReady();
-  const ids = [...new Set(store.aliasEntries.map(([, artistId]) => artistId))];
-  const out = [];
-  await Promise.all(ids.map(async (artistId) => {
-    const artist = await getArtistIndex(artistId).catch(() => null);
-    if (!artist) return;
-    for (const track of artist.tracks) {
-      out.push({ artistId, canonicalName: artist.canonical_name, track });
+  const aliasesById = new Map();
+  for (const [alias, artistId] of store.aliasEntries) {
+    if (!aliasesById.has(artistId)) aliasesById.set(artistId, []);
+    aliasesById.get(artistId).push(alias);
+  }
+  const artists = [];
+  const tracks = [];
+  await Promise.all([...aliasesById].map(async ([artistId, aliases]) => {
+    const index = await getArtistIndex(artistId).catch(() => null);
+    const name = index?.canonical_name ?? aliases[0];
+    artists.push({ id: artistId, name, aliases, trackCount: index?.tracks.length ?? 0 });
+    for (const track of index?.tracks ?? []) {
+      tracks.push({ artistId, artistName: name, id: track.id, title: track.title, length: track.length, path: track.path });
     }
   }));
-  return out;
+  artists.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  return { artists, tracks, fromCatalog: false };
+}
+
+// Every track as { artistId, canonicalName, track } (the duplicate check's shape).
+export async function getAllTracks() {
+  const { tracks } = await getDirectory();
+  return tracks.map((track) => ({
+    artistId: track.artistId,
+    canonicalName: track.artistName,
+    track: { id: track.id, title: track.title, length: track.length, path: track.path }
+  }));
 }
 
 export function getArtistIndex(artistId) {

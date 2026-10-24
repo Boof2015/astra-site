@@ -43,6 +43,7 @@ import {
   formatDuration,
   findSimilarArtists,
   getAllTracks,
+  getDirectory,
   matchKey,
   resolveArtist
 } from "./data.js";
@@ -62,6 +63,7 @@ import {
 import { canonicalTag, isValidLanguageTag, languageName, suggestLanguages } from "./languages.js";
 import { attachSuggest } from "./suggest.js";
 import { createReviewSheet, summarizeSubmission } from "./review-sheet.js";
+import { buildSearchIndex, search as searchDirectory } from "./search.js";
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/u.test(navigator.platform || navigator.userAgent);
 const ALT = IS_MAC ? "⌥" : "Alt+";
@@ -286,6 +288,7 @@ export function createEditor(container, options = {}) {
     }
 
     wireLanguageFields();
+    wireArtistSuggest();
     el.disambig.addEventListener("click", onDisambigClick);
 
     el.statusPill.addEventListener("click", () => togglePop());
@@ -1284,6 +1287,33 @@ export function createEditor(container, options = {}) {
     node.classList.remove("ed-flash");
     void node.offsetWidth;
     node.classList.add("ed-flash");
+  }
+
+  // ─────────────────────────── artist suggestions ───────────────────────────
+  // Existing artists as you type ("kd" -> K/DA), so a submission lands on the artist that's
+  // already there instead of creating a near-duplicate record.
+  function wireArtistSuggest() {
+    let index = null;
+    getDirectory()
+      .then((directory) => {
+        index = buildSearchIndex({ artists: directory.artists, tracks: [] });
+      })
+      .catch(() => {});
+    suggests.push(attachSuggest(el.artist, {
+      pickOnTab: false,
+      getItems: (input) => {
+        const query = input.value.trim();
+        if (!query || !index) return [];
+        return searchDirectory(index, query, { artistLimit: 6, trackLimit: 0 }).artists.map(({ artist, alias }) => ({
+          name: artist.name,
+          html: `<span>${escapeHtml(artist.name)}</span>${alias ? `<em>aka ${escapeHtml(alias)}</em>` : ""}<small>${artist.trackCount} ${artist.trackCount === 1 ? "track" : "tracks"}</small>`
+        }));
+      },
+      onPick: (item, input) => {
+        input.value = item.name;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }));
   }
 
   // ─────────────────────────── language fields ───────────────────────────

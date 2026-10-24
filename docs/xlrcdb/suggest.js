@@ -5,8 +5,9 @@
 // getItems(input) -> [{ html, ...anything }]  (html must already be escaped)
 // onPick(item, input)
 // openOnFocus: show the list on focus, not just while typing
+// pickOnTab: Tab takes the highlighted item (off where the typed text may be new on purpose)
 
-export function attachSuggest(input, { getItems, onPick, openOnFocus = false }) {
+export function attachSuggest(input, { getItems, onPick, openOnFocus = false, pickOnTab = true }) {
   const host = input.parentElement;
   host.classList.add("suggest-host");
   const list = document.createElement("div");
@@ -86,7 +87,7 @@ export function attachSuggest(input, { getItems, onPick, openOnFocus = false }) 
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive(active - 1);
-    } else if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) {
+    } else if (e.key === "Enter" || (pickOnTab && e.key === "Tab" && !e.shiftKey)) {
       if (active < 0) return;
       e.preventDefault();
       pick(active);
