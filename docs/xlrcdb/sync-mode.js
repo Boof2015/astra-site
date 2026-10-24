@@ -67,7 +67,6 @@ export function createSyncMode(host, hooks) {
     </div>
     <div class="sync-lines" aria-live="polite"></div>
     <div class="sync-hint"></div>
-    <div class="sync-end"></div>
     <button class="sync-tap" type="button" data-act="stamp"><span class="for-lines">Stamp this line</span><span class="for-words">Stamp next word</span> <kbd>Space</kbd></button>
     <div class="sync-keys">
       <button type="button" data-act="play"><kbd>K</kbd>Play / pause</button>
@@ -85,7 +84,6 @@ export function createSyncMode(host, hooks) {
   const linesEl = host.querySelector(".sync-lines");
   const progressEl = host.querySelector(".sync-progress");
   const hintEl = host.querySelector(".sync-hint");
-  const endEl = host.querySelector(".sync-end");
   const latencySelect = host.querySelector(".sync-latency select");
   latencySelect.value = String(latency);
 
@@ -184,6 +182,10 @@ export function createSyncMode(host, hooks) {
   }
   document.addEventListener("keydown", onKeydown, true);
   document.addEventListener("keyup", onKeyup, true);
+  const onResize = () => {
+    if (open) fit();
+  };
+  window.addEventListener("resize", onResize);
 
   function lines() {
     return hooks.getSource().split("\n");
@@ -489,7 +491,7 @@ export function createSyncMode(host, hooks) {
       linesEl.innerHTML = "";
       progressEl.textContent = "";
       hintEl.textContent = "";
-      endEl.textContent = "";
+      fit();
       return;
     }
     if (!list.includes(cursor)) cursor = list.find((n) => n >= cursor) ?? list[list.length - 1];
@@ -517,7 +519,7 @@ export function createSyncMode(host, hooks) {
 
     const rows = [-2, -1, 0, 1, 2].map((offset) => {
       const n = list[index + offset];
-      if (!n) return `<div class="sync-line pad"></div>`;
+      if (!n) return `<div class="sync-line pad${Math.abs(offset) === 2 ? " far" : ""}"></div>`;
       const { text, ms } = describe(all[n - 1]);
       const time = ms === null ? '<span class="sync-ts none">not timed</span>' : `<span class="sync-ts">${formatMs(ms)}</span>`;
       const skipped = words && isSkipped(all[n - 1]);
@@ -531,18 +533,28 @@ export function createSyncMode(host, hooks) {
     });
     linesEl.innerHTML = rows.join("");
 
+    // One short line of guidance; at the very end it says how to mark where the lyrics end.
     const last = index === list.length - 1;
+    let hint = "";
+    let end = false;
     if (words) {
       const skippedHere = cursor && isSkipped(all[cursor - 1]);
-      hintEl.innerHTML = info?.repeat
-        ? ""
-        : skippedHere && !adjusting
-          ? 'Skipped: this line keeps its line time, without word timing. Press <kbd>Tab</kbd> to <button type="button" class="sync-link" data-act="unskip">unskip it</button>, or just stamp a word.'
-          : adjusting
-          ? 'Click between letters to split a word into syllables, or on a divider to join two words. <kbd>Esc</kbd> when done. <button type="button" class="sync-link" data-act="clear-words">Clear this line\'s word times</button>'
-          : "Press <kbd>Space</kbd> as each word starts. The first word also sets when the line starts. Click a word to start from it, or <kbd>Tab</kbd> to skip a line you can't time.";
       const finished = info && wordIndex >= info.chips.length;
-      endEl.textContent = last && finished ? "Last word stamped. Press . to mark where the song's lyrics end." : "";
+      if (info?.repeat) hint = "";
+      else if (adjusting) hint = 'Click between letters to split, or on a divider to join. <kbd>Esc</kbd> when done. <button type="button" class="sync-link" data-act="clear-words">Clear word times</button>';
+      else if (last && finished) (hint = "Last word stamped. Press <kbd>.</kbd> to mark where the lyrics end."), (end = true);
+      else if (skippedHere) hint = 'Skipped: keeps its line time, no word timing. <kbd>Tab</kbd> to <button type="button" class="sync-link" data-act="unskip">unskip</button>, or stamp a word.';
+      else hint = "Press <kbd>Space</kbd> as each word starts. Click a word to start there. <kbd>Tab</kbd> skips a line.";
+    } else if (last) {
+      hint = "Last line. After its final word, press <kbd>.</kbd> to mark where the lyrics end.";
+      end = true;
+    } else {
+      hint = "Press <kbd>Space</kbd> as each line starts.";
+    }
+    hintEl.innerHTML = hint;
+    hintEl.classList.toggle("end", end);
+
+    if (words) {
       if (info && !info.repeat && !adjusting) {
         const nextLine = list[index + 1];
         const nextStart = nextLine ? leadingTimestamps(all[nextLine - 1])[0]?.ms : undefined;
@@ -554,10 +566,20 @@ export function createSyncMode(host, hooks) {
         };
         tick();
       }
-    } else {
-      hintEl.textContent = "";
-      endEl.textContent = last ? "Last line. After the final word, press . to mark where the song's lyrics end." : "";
     }
+    fit();
+  }
+
+  // Keep everything on screen without scrolling where possible: in a short window, drop the
+  // outer lines above and below first, then the hint. Measured after each render, before
+  // paint, so nothing flickers.
+  function fit() {
+    host.classList.remove("tight", "tighter");
+    const fits = () => host.scrollHeight <= host.clientHeight + 1; // allow a pixel of rounding
+    if (host.hidden || fits()) return;
+    host.classList.add("tight");
+    if (fits()) return;
+    host.classList.add("tighter");
   }
 
   function chipsHtml(info) {
@@ -677,6 +699,7 @@ export function createSyncMode(host, hooks) {
     destroy() {
       document.removeEventListener("keydown", onKeydown, true);
       document.removeEventListener("keyup", onKeyup, true);
+      window.removeEventListener("resize", onResize);
     }
   };
 }
